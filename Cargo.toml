@@ -1,0 +1,11 @@
+[package]
+name = "cli_explorer_toolkit"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.34", features = ["derive", "cargo"] }
+clap_builder = "4.5.34"
+regex = "1.11.1"
+serde = {version = "1.0.219", features = ["derive"]}
+serde_json = "1.0.140"

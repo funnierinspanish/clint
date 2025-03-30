@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/cli-structure.schema.json",
+  "title": "CLI Structure",
+  "type": "object",
+  "required": ["name", "description", "version", "children"],
+  "properties": {
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "version": { "type": "string" },
+    "children": {
+      "type": "object",
+      "required": ["COMMAND", "FLAG", "USAGE", "OTHER"],
+      "properties": {
+        "COMMAND": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/command" }
+        },
+        "FLAG": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/flag" }
+        },
+        "USAGE": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/usage" }
+        },
+        "OTHER": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/other" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "command": {
+      "type": "object",
+      "required": ["name", "description", "parent", "children"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "parent": { "type": "string" },
+        "parent_header": { "type": "string" },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/outputs" }
+        },
+        "children": {
+          "$ref": "#/properties/children"
+        }
+      },
+      "additionalProperties": true
+    },
+    "flag": {
+      "type": "object",
+      "required": ["parent_header"],
+      "properties": {
+        "short": { "type": ["string", "null"] },
+        "long": { "type": ["string", "null"] },
+        "data_type": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "parent_header": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "usage": {
+      "type": "object",
+      "required": ["usage_string", "parent_header"],
+      "properties": {
+        "usage_string": { "type": "string" },
+        "parent_header": { "type": "string" },
+        "components": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/usageComponent" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "usageComponent": {
+      "type": "object",
+      "required": ["component_type", "name", "required", "repeatable", "key_value"],
+      "properties": {
+        "component_type": { "type": "string" },
+        "name": { "type": "string" },
+        "required": { "type": "boolean" },
+        "repeatable": { "type": "boolean" },
+        "key_value": { "type": "boolean" },
+        "alternatives": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/usageComponent" }
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/usageComponent" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "other": {
+      "type": "object",
+      "required": ["line_contents", "parent_header"],
+      "properties": {
+        "line_contents": { "type": "string" },
+        "parent_header": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "outputs": {
+      "type": "object",
+      "required": ["stdout", "stderr"],
+      "properties": {
+        "stdout": { "type": "string" },
+        "stderr": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
