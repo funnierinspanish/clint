@@ -52,22 +52,13 @@ pub enum FileOutputFormat {
 }
 
 impl FileOutputFormat {
-    pub fn from_str(format: Option<&String>) -> Option<Self> {
-        match format {
-            Some(f) => match f.to_lowercase().as_str() {
-                "json" => Some(FileOutputFormat::JSON),
-                "md" => Some(FileOutputFormat::Markdown),
-                "text" => Some(FileOutputFormat::Text),
-                _ => Some(FileOutputFormat::Text),
-            },
-            None => Some(FileOutputFormat::JSON),
-        }
-    }
-    pub fn from_file_ext(format: &str) -> Option<Self> {
+    pub fn from_str(format: &str) -> Option<Self> {
         match format.to_lowercase().as_str() {
             "json" => Some(FileOutputFormat::JSON),
             "md" => Some(FileOutputFormat::Markdown),
             "txt" => Some(FileOutputFormat::Text),
+            "markdown" => Some(FileOutputFormat::Markdown),
+            "text" => Some(FileOutputFormat::Text),
             _ => Some(FileOutputFormat::Text),
         }
     }

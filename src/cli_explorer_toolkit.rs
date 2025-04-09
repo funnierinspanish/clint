@@ -76,7 +76,7 @@ pub fn run_summary_generator(input_json: &PathBuf, output_path: &PathBuf, format
     match out_file.format {
         FileOutputFormat::Markdown => {
             let summary_md = format!(
-                "# CLI Summary\n\n## Unique Keywords Count: {}\n\n## Unique Command Count: {}\n\n## Unique Subcommand Count: {}\n\n## Unique Short Flag Count: {}\n\n## Unique Long Flag Count: {}\n\n## Total Command Count: {}\n\n## Total Subcommand Count: {}\n\n## Total Short Flag Count: {}\n\n## Total Long Flag Count: {}",
+                "# CLI Summary\n\n## Unique Keywords Count\n\n{}\n\n## Unique Command Count\n\n{}\n\n## Unique Subcommand Count\n\n{}\n\n## Unique Short Flag Count\n\n{}\n\n## Unique Long Flag Count\n\n{}\n\n## Total Command Count\n\n{}\n\n## Total Subcommand Count\n\n{}\n\n## Total Short Flag Count\n\n{}\n\n## Total Long Flag Count\n\n{}",
                 summary.unique_keywords_count,
                 summary.unique_command_count,
                 summary.unique_subcommand_count,

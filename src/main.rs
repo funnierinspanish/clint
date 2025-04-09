@@ -5,11 +5,12 @@ mod typescript_writer;
 mod usage_parser;
 mod cli_explorer_toolkit;
 mod summary_generator;
+mod naive_tooltip_content_generator;
 
 use cli_explorer_toolkit::{run_cli_parser, run_cli_replicator, run_keyword_extractor, run_summary_generator, run_webpage_generator};
 use models::FileOutputFormat;
-mod file_writer;
 use std::{path::PathBuf, env::current_dir};
+use naive_tooltip_content_generator::write_ts_file;
 
 use clap::{error::ErrorKind, Parser, Subcommand, CommandFactory};
 
@@ -83,6 +84,16 @@ enum Commands {
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
     },
+    /// Generates a replica of the CLI program in RustLang using the clap library
+    NaiveTooltip {
+        /// Input JSON file
+        #[arg(value_name = "INPUT_JSON")]
+        input_json: Option<PathBuf>,
+
+        /// Output path for the Rust file
+        #[arg(short, long, value_name = "OUTPUT_PATH")]
+        output_path: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -120,14 +131,14 @@ fn main() {
           let output_file_format = if output_path.exists() && format.is_none() {
             match out_path_extension {
               Some(ext) => {
-                FileOutputFormat::from_file_ext(ext)
+                FileOutputFormat::from_str(ext)
               },
               None => {
-                FileOutputFormat::from_file_ext("txt")
+                FileOutputFormat::from_str("txt")
               }
             }
           } else {
-            FileOutputFormat::from_file_ext("txt")
+            FileOutputFormat::from_str("txt")
           };
           
           run_keyword_extractor(&input_json, output_path, output_file_format.expect("Failed to get output format"));
@@ -160,14 +171,14 @@ fn main() {
           let output_file_format = if output_path.exists() && format.is_none() {
             match out_path_extension {
               Some(ext) => {
-                FileOutputFormat::from_file_ext(ext)
+                FileOutputFormat::from_str(ext)
               },
               None => {
-                FileOutputFormat::from_file_ext("txt")
+                FileOutputFormat::from_str("txt")
               }
             }
           } else {
-            FileOutputFormat::from_file_ext("txt")
+            FileOutputFormat::from_str("txt")
           };
           run_summary_generator(&input_json, out_path, output_file_format.expect("Failed to get output format"));
         },
@@ -235,6 +246,25 @@ fn main() {
             None => &current_dir().expect("Failed to get current directory").join(format!("{}-replica.rs", input_json_file_name.unwrap_or("output"))),
           };
           run_cli_replicator(&input_json, out_path);
+        },
+        Some(Commands::NaiveTooltip { input_json, output_path }) => {
+          let input_json = match input_json {
+            Some(path) => path,
+            None => {
+              println!("No input JSON file provided.");
+              return;
+            }
+          };
+          let input_file_name: PathBuf = input_json.with_extension("");
+          let input_json_file_name = match input_file_name.file_name() {
+            Some(name) => name.to_str(),
+            None => None,
+          };
+          let out_path = match output_path {
+            Some(path) => path,
+            None => &current_dir().expect("Failed to get current directory").join(format!("./out/{}-naive_tooltip.ts", input_json_file_name.unwrap_or("output"))),
+          };
+          write_ts_file(&input_json, out_path).expect("Failed to write TypeScript file");
         },
         None => {}
     }
