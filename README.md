@@ -31,6 +31,18 @@ Generates a summary of the CLI tool's structure in different formats:
 
 Generates a web-based visualization of the CLI tool's structure using simplified HTML and JavaScript.
 
+### Replicate a CLI tool
+
+Generates a replica of the CLI tool in Rust using the `clap` library. This includes commands, subcommands, and flags, and creates placeholders for the implementation of each command. It is meant to be a starting point for building experiments with Developer Experience (DX) in mind.
+
+Example:
+
+```plain
+cargo run -- replicate out/hugo/hugo-structure.json -o out/hugo/replica
+```
+
+A new rust project will be created in the `out/hugo/replica` directory with a pre-built binary. You can then modify any of the commands and subcommands to implement your own logic.
+
 ## Usage
 
 ```plain
