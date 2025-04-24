@@ -8,6 +8,7 @@ use crate::models::FileOutputFormat;
 use crate::cli_parser;
 use crate::keyword_extractor;
 use crate::models::OutputFile;
+use crate::replicator;
 use crate::summary_generator::generate_summary;
 
 pub fn run_cli_parser(command: &str, output_path: &PathBuf) {
@@ -137,6 +138,6 @@ pub fn run_webpage_generator(input_json: &PathBuf, output_path: &PathBuf) {
     
 }
 
-pub fn run_cli_replicator(input_json: &PathBuf, output_path: &PathBuf) {
-    todo!()
+pub fn run_cli_replicator(input_json: &PathBuf, output_path: &PathBuf, keep_help_flags: bool, keep_verbose_flags: bool) {
+    replicator::replicate(input_json, output_path, keep_help_flags, keep_verbose_flags).expect("Failed to replicate CLI");
 }

@@ -1,6 +1,8 @@
 [package]
-name = "cli_explorer_toolkit"
-version = "0.0.1"
+name = "clint"
+description = "CLI Navigator Toolkit (CLINT) meant for people doing 'Developer Experience' work. It helps you understand the structure of CLI tools and quickly prototype proposals to the rest of your team."
+authors = ["Diego Coy (https://github.com/funnierinspanish)"]
+version = "0.1.2"
 edition = "2024"
 
 [dependencies]

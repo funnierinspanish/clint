@@ -1,9 +1,9 @@
 
-# CLI Explorer Toolkit
+# CLINT: CLI Navigator Toolkit
 
-A command line tool that helps you explore CLI tools.
+A Command Line Tool that helps you navigate other CLIs.
 
-This is a _Rustification_ of [https://github.com/funnierinspanish/cli-explorer-toolchain_legacy](https://github.com/funnierinspanish/cli-explorer-toolchain_legacy), even though the original project is not maintained anymore, it is still a great tool to explore CLI tools.
+This is a _Rustification_ of [https://github.com/funnierinspanish/cli-explorer-toolchain_legacy](https://github.com/funnierinspanish/cli-explorer-toolchain_legacy), even though the original project is not maintained anymore, it is still a great resource to explore CLI tools.
 
 ## Features
 
@@ -34,7 +34,7 @@ Generates a web-based visualization of the CLI tool's structure using simplified
 ## Usage
 
 ```plain
-Usage: cli_explorer_toolkit [COMMAND]
+Usage: clint [COMMAND]
 
 Commands:
   parse            Parses a CLI program written with the Cobra library and generates a JSON file with its structure

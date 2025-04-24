@@ -3,11 +3,12 @@ mod cli_parser;
 mod keyword_extractor;
 mod typescript_writer;
 mod usage_parser;
-mod cli_explorer_toolkit;
+mod cli_navigator_toolkit;
 mod summary_generator;
 mod naive_tooltip_content_generator;
+mod replicator;
 
-use cli_explorer_toolkit::{run_cli_parser, run_cli_replicator, run_keyword_extractor, run_summary_generator, run_webpage_generator};
+use cli_navigator_toolkit::{run_cli_parser, run_cli_replicator, run_keyword_extractor, run_summary_generator, run_webpage_generator};
 use models::FileOutputFormat;
 use std::{path::PathBuf, env::current_dir};
 use naive_tooltip_content_generator::write_ts_file;
@@ -83,8 +84,14 @@ enum Commands {
         /// Output path for the Rust file
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
+        /// Keep the original clap-generated help flags/subcommand
+        #[arg(long, default_value_t = false)]
+        keep_help_flags: bool,
+        /// Keep the original clap-generated verbose flags
+        #[arg(long, default_value_t = false)]
+        keep_verbose_flags: bool,
     },
-    /// Generates a replica of the CLI program in RustLang using the clap library
+    /// Generates the TypeScript file for the NaiveTooltip component
     NaiveTooltip {
         /// Input JSON file
         #[arg(value_name = "INPUT_JSON")]
@@ -228,7 +235,7 @@ fn main() {
             },
           };
         },
-        Some(Commands::Replicate { input_json, output_path }) => {
+        Some(Commands::Replicate { input_json, output_path, keep_help_flags, keep_verbose_flags }) => {
           let input_json = match input_json {
             Some(path) => path,
             None => {
@@ -245,7 +252,7 @@ fn main() {
             Some(path) => path,
             None => &current_dir().expect("Failed to get current directory").join(format!("{}-replica.rs", input_json_file_name.unwrap_or("output"))),
           };
-          run_cli_replicator(&input_json, out_path);
+          run_cli_replicator(&input_json, out_path, *keep_help_flags, *keep_verbose_flags);
         },
         Some(Commands::NaiveTooltip { input_json, output_path }) => {
           let input_json = match input_json {
@@ -266,7 +273,12 @@ fn main() {
           };
           write_ts_file(&input_json, out_path).expect("Failed to write TypeScript file");
         },
-        None => {}
+        None => {
+          let mut cmd = Cli::command();
+          cmd.print_help().expect("Failed to print help");
+          println!();
+          std::process::exit(0);
+        }
     }
 
     // Continued program logic goes here...

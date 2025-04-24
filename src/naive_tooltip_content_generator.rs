@@ -130,8 +130,3 @@ pub fn write_ts_file(cli_json_path: &PathBuf, output_ts_path: &PathBuf) -> std::
 
     Ok(())
 }
-
-// Usage example:
-// let cli_path = PathBuf::from("./out/flexai/1.0.0/flexai_cli_structure.json");
-// let ts_path = PathBuf::from("./out/flexai/1.0.0/naive_tooltip_data.ts");
-// write_ts_file(&cli_path, &ts_path).expect("Failed to generate tooltip TypeScript file");
