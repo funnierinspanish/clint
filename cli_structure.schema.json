@@ -35,12 +35,24 @@
   "definitions": {
     "command": {
       "type": "object",
-      "required": ["name", "description", "parent", "children"],
+      "required": ["name", "parent", "children"],
       "properties": {
         "name": { "type": "string" },
-        "description": { "type": "string" },
+        "description": { 
+          "type": "string",
+          "description": "Command description - may be missing for some commands due to CLI formatting issues"
+        },
         "parent": { "type": "string" },
         "parent_header": { "type": "string" },
+        "depth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Nesting depth of the command (0 for root, 1 for first level, etc.)"
+        },
+        "command_path": {
+          "type": "string",
+          "description": "Full command path (e.g., 'flexai training runtime list')"
+        },
         "outputs": {
           "type": "object",
           "additionalProperties": { "$ref": "#/definitions/outputs" }

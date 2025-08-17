@@ -240,7 +240,9 @@ fn parse_help_output_dynamic(
   base_command: &str,
   command: &str,
   output: &str,
-  visited: &mut HashSet<String>
+  visited: &mut HashSet<String>,
+  depth: usize,
+  command_path: &str
 ) -> Value {
   if visited.contains(command) {
       return json!({ "children": {} });
@@ -297,9 +299,10 @@ fn parse_help_output_dynamic(
 
                               // Recursively parse children with output
                               let parent_command = format!("{} {}", command, cmd_name);
+                              let child_command_path = format!("{} {}", command_path, cmd_name);
                               let help_output = execute_full_command(&format!("{} --help", parent_command));
                             //   let raw_output = execute_full_command(&parent_command);
-                              let parsed_children = parse_help_output_dynamic(base_command, &parent_command, &help_output["stdout"].as_str().unwrap_or_default(), visited);
+                              let parsed_children = parse_help_output_dynamic(base_command, &parent_command, &help_output["stdout"].as_str().unwrap_or_default(), visited, depth + 1, &child_command_path);
 
                               if let Some(command_map) = components.get_mut("COMMAND").and_then(Value::as_object_mut) {
                                   if let Some(cmd_obj) = command_map.get_mut(&cmd_name) {
@@ -309,6 +312,15 @@ fn parse_help_output_dynamic(
                                               "help_page": help_output,
                                             //   "_": raw_output
                                           }));
+                                          // Preserve the description from parsed children if it exists
+                                          if let Some(parsed_description) = parsed_children.get("description") {
+                                              if !parsed_description.as_str().unwrap_or("").is_empty() {
+                                                  cmd_obj_map.insert("description".to_string(), parsed_description.clone());
+                                              }
+                                          }
+                                          // Add the new fields
+                                          cmd_obj_map.insert("depth".to_string(), json!(depth + 1));
+                                          cmd_obj_map.insert("command_path".to_string(), json!(child_command_path));
                                       }
                                   }
                               }
@@ -346,7 +358,9 @@ pub fn extract_cli_structure(base_command: &str, command_name: Option<String>) -
       "description": "",
       "children": {},
       "outputs": {},
-      "version": get_program_version(base_command)
+      "version": get_program_version(base_command),
+      "depth": 0,
+      "command_path": current_command_name
   });
 
   let help_output = execute_full_command(&format!("{} --help", current_command_name));
@@ -358,7 +372,7 @@ pub fn extract_cli_structure(base_command: &str, command_name: Option<String>) -
   });
 
   let mut visited = HashSet::new();
-  let parsed = parse_help_output_dynamic(base_command, &current_command_name, &structure["outputs"]["help_page"]["stdout"].as_str().unwrap_or_default(), &mut visited);
+  let parsed = parse_help_output_dynamic(base_command, &current_command_name, &structure["outputs"]["help_page"]["stdout"].as_str().unwrap_or_default(), &mut visited, 0, &current_command_name);
 
   structure["description"] = parsed.get("description").cloned().unwrap_or(json!(""));
   structure["children"] = parsed.get("children").cloned().unwrap_or(json!({}));

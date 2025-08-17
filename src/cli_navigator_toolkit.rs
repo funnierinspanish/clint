@@ -124,9 +124,6 @@ pub fn run_summary_generator(input_json: &PathBuf, output_path: &PathBuf, format
 }
 
 pub fn run_webpage_generator(input_json: &PathBuf, output_path: &PathBuf) {
-    // Copy input JSON file to output path
-    std::fs::copy(input_json, output_path.join("cli-structure.json")).expect("Failed to copy file");
-   
     // Copy the contents of ./src/web to the output path
     let src_path = Path::new("./src/web");
     for entry in std::fs::read_dir(src_path).expect("Failed to read directory") {
@@ -135,7 +132,8 @@ pub fn run_webpage_generator(input_json: &PathBuf, output_path: &PathBuf) {
         let dest_file_path = output_path.join(src_file_path.file_name().expect("Failed to get file name"));
         std::fs::copy(&src_file_path, &dest_file_path).expect("Failed to copy file");
     }
-    
+    // Copy input JSON file to output path
+    std::fs::copy(input_json, output_path.join("cli-structure.json")).expect("Failed to copy file");
 }
 
 pub fn run_cli_replicator(input_json: &PathBuf, output_path: &PathBuf, keep_help_flags: bool, keep_verbose_flags: bool) {

@@ -28,7 +28,7 @@ function createCard(command, parent = '') {
     outputs.setAttribute('slot', 'outputs');
     const rawText = command.outputs.help_page?.stdout || '';
     outputs.innerHTML = `
-      <details open="open">
+      <details>
         <summary style="margin-bottom: .7rem; cursor: pointer;">Help Page</summary>
         <pre style="margin: 0; padding: 0 1rem; background-color: #333; color: #f7f7f7; line-height: 1.5">
           <code style="white-space: pre-wrap;">
@@ -43,9 +43,6 @@ ${rawText}
   // Flags slot
   if (command.children?.FLAG?.length) {
     const flags = document.createElement('div');
-    console.log(command.children.FLAG.map(f => {
-      console.log(f);
-    }));
     flags.setAttribute('slot', 'flags');
     flags.innerHTML = `
     <h4>Flags</h4>
@@ -63,75 +60,63 @@ ${rawText}
     el.appendChild(flags);
   }
 
-  // Other slot
-  // console.log(command.children?.OTHER);
-  // if (command.children?.OTHER?.length) {
-  //   const other = document.createElement('div');
-  //   other.setAttribute('slot', 'other');
-  //   other.innerHTML = `<h4>Other</h4><ul>` +
-  //     command.children.OTHER.map(o => `<li>${o.contents}</li>`).join('') +
-  //     `</ul>`;
-  //   el.appendChild(other);
-  // }
+  // Children slot - all children become nested cli-command-card elements
+  if (command.children?.COMMAND && Object.keys(command.children.COMMAND).length > 0) {
+    const childrenContainer = document.createElement('div');
+    childrenContainer.setAttribute('slot', 'children');
+    childrenContainer.innerHTML = '<h4>Subcommands</h4>';
+    
+    const fullPath = parent ? `${parent} ${command.name}` : command.name;
+    
+    for (const [childName, childCommand] of Object.entries(command.children.COMMAND)) {
+      // Create a nested card for all child commands
+      const nestedWrapper = document.createElement('div');
+      nestedWrapper.style.marginLeft = '1rem';
+      nestedWrapper.style.borderLeft = '2px solid #555';
+      nestedWrapper.style.paddingLeft = '1rem';
+      nestedWrapper.style.marginTop = '1rem';
+      
+      const childCard = createCard(childCommand, fullPath);
+      nestedWrapper.appendChild(childCard);
+      childrenContainer.appendChild(nestedWrapper);
+    }
+    
+    el.appendChild(childrenContainer);
+  }
 
   return el;
 }
 
-function flattenCommands(node, parent = '', depth = 0, acc = [], path = '') {
-  const fullPath = path ? `${path} ${node.name}`.trim() : node.name;
-  acc.push({ node, parent: path, depth, path: fullPath });
-  const children = node.children?.COMMAND || {};
-  for (const key in children) {
-    flattenCommands(children[key], node.name, depth + 1, acc, fullPath);
-  }
-  return acc;
-}
-
-function groupByFullParent(flatList) {
-  const groups = {};
-  for (const item of flatList) {
-    const groupKey = item.path.split(' ').slice(0, -1).join(' ') || 'root';
-    if (!groups[groupKey]) groups[groupKey] = [];
-    groups[groupKey].push(item);
-  }
-  return groups;
-}
 
 function renderCommands(container, cliData) {
-  const flat = flattenCommands(cliData);
-  flat.sort((a, b) => a.depth - b.depth);
-
-  const grouped = {};
-
-  for (const entry of flat) {
-    if (entry.depth === 1) {
-      // Direct child of root: this becomes its own group header
-      const groupKey = entry.path;
-      grouped[groupKey] = [entry];
-    } else if (entry.depth > 1) {
-      const parentPath = entry.path.split(' ').slice(0, -1).join(' ');
-      if (!grouped[parentPath]) grouped[parentPath] = [];
-      grouped[parentPath].push(entry);
-    }
-  }
-
-  for (const groupPath in grouped) {
+  // Render top-level commands as section headers with their children as cards
+  const topLevelCommands = cliData.children?.COMMAND || {};
+  
+  for (const [commandName, commandData] of Object.entries(topLevelCommands)) {
     const section = document.createElement('section');
     const header = document.createElement('h2');
-    header.textContent = groupPath;
+    header.textContent = `${cliData.name} ${commandName}`;
     section.appendChild(header);
-
-    const sortedGroup = grouped[groupPath].sort((a, b) => {
-      if (a.path === groupPath) return -1;
-      if (b.path === groupPath) return 1;
-      return a.depth - b.depth;
-    });
-
-    sortedGroup.forEach(({ node, parent }) => {
-      const card = createCard(node, parent);
+    
+    // Add description of the top-level command
+    if (commandData.description) {
+      const description = document.createElement('p');
+      description.textContent = commandData.description;
+      description.style.color = '#ccc';
+      description.style.fontStyle = 'italic';
+      description.style.marginBottom = '1rem';
+      section.appendChild(description);
+    }
+    
+    // Render children of top-level command as cards
+    const children = commandData.children?.COMMAND || {};
+    const fullPath = `${cliData.name} ${commandName}`;
+    
+    for (const [childName, childCommand] of Object.entries(children)) {
+      const card = createCard(childCommand, fullPath);
       section.appendChild(card);
-    });
-
+    }
+    
     container.appendChild(section);
   }
 }

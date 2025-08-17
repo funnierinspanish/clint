@@ -54,19 +54,19 @@ class CliCommandCard extends HTMLElement {
           margin-top: 1em;
         }
       </style>
-      <details open>
+      <details>
         <summary>${path}</summary>
         <section>
           <div><h4 class="label">Description:</h4><div class="field-value">${description}</div></div>
           ${!parent ? `<div><h4 class="label">Version:</h4><div class="field-value">${version}</div></div>` : ''}
           <div class="slot-container">
           <slot name="outputs"></slot>
-          <slot name="children"></slot>
           <slot name="flags"></slot>
           <slot name="usage"></slot>
           <slot name="other"></slot>
           </div>
           ${parent.length ? `<div><h4 class="label">Parent:</h4><div class="field-value">${parent}</div></div>` : ''}
+          <slot name="children"></slot>
         </section>
       </details>
     `;
