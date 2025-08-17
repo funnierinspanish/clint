@@ -21,11 +21,11 @@ class CliCommandCard extends HTMLElement {
         summary {
           font-weight: bold;
           cursor: pointer;
-          padding: 0.5em;
           background-color: #333;
           color: #9eaaf6;
           box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1);
           padding: 1rem 1.6rem;
+          border-radius: 0.5rem;
         }
         summary::marker {
           color:rgb(199, 199, 199);
