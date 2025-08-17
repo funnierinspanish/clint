@@ -47,14 +47,14 @@ pub struct CLISummary {
 
 pub enum FileOutputFormat {
     Markdown,
-    JSON,
+    Json,
     Text,
 }
 
 impl FileOutputFormat {
     pub fn from_str(format: &str) -> Option<Self> {
         match format.to_lowercase().as_str() {
-            "json" => Some(FileOutputFormat::JSON),
+            "json" => Some(FileOutputFormat::Json),
             "md" => Some(FileOutputFormat::Markdown),
             "txt" => Some(FileOutputFormat::Text),
             "markdown" => Some(FileOutputFormat::Markdown),
@@ -69,8 +69,11 @@ pub struct OutputFile {
 }
 
 impl OutputFile {
-    pub fn new(path: &PathBuf, format: FileOutputFormat) -> Self {
-        OutputFile { path: path.clone(), format }
+    pub fn new(path: &std::path::Path, format: FileOutputFormat) -> Self {
+        OutputFile {
+            path: path.to_path_buf(),
+            format,
+        }
     }
     pub fn write_json_output_file(&self, content: Value) {
         self.write(&serde_json::to_string_pretty(&content).expect("Failed to serialize JSON"));
@@ -83,17 +86,18 @@ impl OutputFile {
     }
 
     fn write(&self, content: &str) {
-        fs::create_dir_all(self.path.parent().expect("Failed to create path")).expect("Failed to create directory");
+        fs::create_dir_all(self.path.parent().expect("Failed to create path"))
+            .expect("Failed to create directory");
         fs::write(&self.path, content).expect("Failed to write output file");
     }
 }
 
 #[derive(Eq, Hash, PartialEq, Debug, Serialize)]
 pub enum ChildLineType {
-    FLAG,
-    COMMAND,
-    USAGE,
-    OTHER,
+    Flag,
+    Command,
+    Usage,
+    Other,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

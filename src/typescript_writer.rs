@@ -5,6 +5,7 @@ use std::path::Path;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct ToolTipContents {
     pub title: String,
     pub r#type: String,
@@ -14,7 +15,11 @@ pub struct ToolTipContents {
     pub alias: Option<String>,
 }
 
-pub fn write_tokens_list_ts<P: AsRef<Path>>(file_path: P, data: &[(String, ToolTipContents)]) -> Result<()> {
+#[allow(dead_code)]
+pub fn write_tokens_list_ts<P: AsRef<Path>>(
+    file_path: P,
+    data: &[(String, ToolTipContents)],
+) -> Result<()> {
     let mut file = File::create(file_path)?;
 
     writeln!(file, "export enum ComponentType {{")?;
@@ -27,7 +32,10 @@ pub fn write_tokens_list_ts<P: AsRef<Path>>(file_path: P, data: &[(String, ToolT
     writeln!(file, "  OTHER")?;
     writeln!(file, "}}\n")?;
 
-    writeln!(file, "export const tokensList: Record<string, ToolTipContents> = {{")?;
+    writeln!(
+        file,
+        "export const tokensList: Record<string, ToolTipContents> = {{"
+    )?;
 
     for (key, tooltip) in data {
         let title = &tooltip.title;
@@ -36,7 +44,14 @@ pub fn write_tokens_list_ts<P: AsRef<Path>>(file_path: P, data: &[(String, ToolT
             None => "null".to_string(),
         };
         let parent_chain = match &tooltip.parent_chain {
-            Some(chain) => format!("[{}]", chain.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(", ")),
+            Some(chain) => format!(
+                "[{}]",
+                chain
+                    .iter()
+                    .map(|s| format!("\"{}\"", s))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             None => "null".to_string(),
         };
         let alias = match &tooltip.alias {
@@ -44,7 +59,10 @@ pub fn write_tokens_list_ts<P: AsRef<Path>>(file_path: P, data: &[(String, ToolT
             None => "null".to_string(),
         };
 
-        let escaped_description = tooltip.description.replace('\n', "\\n").replace('"', "\\\"");
+        let escaped_description = tooltip
+            .description
+            .replace('\n', "\\n")
+            .replace('"', "\\\"");
 
         writeln!(file, "  \"{}\": {{", key)?;
         writeln!(file, "    title: \"{}\",", title)?;

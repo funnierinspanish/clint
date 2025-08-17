@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::models::{UsageComponent, ComponentType};
+use crate::models::{ComponentType, UsageComponent};
 
 pub fn parse_usage_line(child_line: &str, command_name: &str) -> Vec<UsageComponent> {
     let mut line = child_line.trim();
@@ -18,6 +18,7 @@ pub fn parse_usage_line(child_line: &str, command_name: &str) -> Vec<UsageCompon
 }
 
 fn parse_tokens(line: &str) -> Vec<UsageComponent> {
+    let key_value_re = Regex::new(r"^<[^>]+>=<[^>]+>$").unwrap();
     let mut components = Vec::new();
     let mut chars = line.chars().peekable();
 
@@ -67,7 +68,7 @@ fn parse_tokens(line: &str) -> Vec<UsageComponent> {
                     token.clone()
                 };
 
-                let key_value_re = Regex::new(r"^<[^>]+>=<[^>]+>$").unwrap();
+                let key_value_re = &key_value_re;
                 let (name, key_value) = if key_value_re.is_match(&token_clean) {
                     (token_clean, true)
                 } else {
@@ -99,19 +100,23 @@ fn parse_tokens(line: &str) -> Vec<UsageComponent> {
 }
 
 fn extract_token<I: Iterator<Item = char>>(chars: &mut std::iter::Peekable<I>) -> String {
-  chars
-    .by_ref()
-    .take_while(|&c| !matches!(c, ' ' | '[' | ']' | '(' | ')' | '|'))
-    .collect::<String>()
-    .trim_end()
-    .to_string()
+    chars
+        .by_ref()
+        .take_while(|&c| !matches!(c, ' ' | '[' | ']' | '(' | ')' | '|'))
+        .collect::<String>()
+        .trim_end()
+        .to_string()
 }
 
-fn extract_until_matching<I: Iterator<Item = char>>(chars: &mut std::iter::Peekable<I>, open: char, close: char) -> String {
+fn extract_until_matching<I: Iterator<Item = char>>(
+    chars: &mut std::iter::Peekable<I>,
+    open: char,
+    close: char,
+) -> String {
     let mut content = String::new();
     let mut depth = 1;
 
-    while let Some(c) = chars.next() {
+    for c in chars.by_ref() {
         if c == open {
             depth += 1;
         } else if c == close {
@@ -128,7 +133,6 @@ fn extract_until_matching<I: Iterator<Item = char>>(chars: &mut std::iter::Peeka
 fn parse_alternatives(group: &str) -> Vec<UsageComponent> {
     group
         .split('|')
-        .map(|part| parse_tokens(part.trim()))
-        .flatten()
+        .flat_map(|part| parse_tokens(part.trim()))
         .collect()
 }

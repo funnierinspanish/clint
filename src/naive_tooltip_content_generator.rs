@@ -85,27 +85,37 @@ fn serialize_token_object_to_ts(token_map: &TokenObject) -> String {
     let mut out = String::from("const tokensList: TokenObject = {\n");
 
     for (key, val) in token_map {
-      
         let type_str = format!("ComponentType.{}", val.r#component_type.to_uppercase());
 
         // let type_str = format!("ComponentType.{}", val.component_type.to_uppercase());
 
-        let parent = val.parent
+        let parent = val
+            .parent
             .as_ref()
             .map(|p| format!("\"{}\"", p))
             .unwrap_or("null".to_string());
 
-        let chain = val.parent_chain
+        let chain = val
+            .parent_chain
             .as_ref()
-            .map(|c| format!("[{}]", c.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(", ")))
+            .map(|c| {
+                format!(
+                    "[{}]",
+                    c.iter()
+                        .map(|s| format!("\"{}\"", s))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
             .unwrap_or("null".to_string());
 
-        let alias = val.alias
+        let alias = val
+            .alias
             .as_ref()
             .map(|a| format!("\"{}\"", a))
             .unwrap_or("null".to_string());
 
-        let title = val.title.as_ref().map(String::as_str).unwrap_or("<missing title>");
+        let title = val.title.as_deref().unwrap_or("<missing title>");
 
         out.push_str(&format!(
             "  \"{}\": {{\n    title: \"{}\",\n    type: {},\n    parent: {},\n    parent_chain: {},\n    description: \"{}\",\n    alias: {}\n  }},\n",
@@ -119,14 +129,17 @@ fn serialize_token_object_to_ts(token_map: &TokenObject) -> String {
 
 pub fn write_ts_file(cli_json_path: &PathBuf, output_ts_path: &PathBuf) -> std::io::Result<()> {
     let cli_file = File::open(cli_json_path).expect("Failed to open CLI structure JSON file");
-    let token_data: TokenObject = serde_json::from_reader(cli_file).expect("Failed to parse CLI structure JSON");
+    let token_data: TokenObject =
+        serde_json::from_reader(cli_file).expect("Failed to parse CLI structure JSON");
 
     let mut file = File::create(output_ts_path).expect("Failed to create TypeScript output file");
-    file.write_all(TYPE_DEFS.as_bytes()).expect("Failed to write type definitions");
+    file.write_all(TYPE_DEFS.as_bytes())
+        .expect("Failed to write type definitions");
     file.write_all(b"\n\n").expect("Failed to write spacing");
 
     let ts_data = serialize_token_object_to_ts(&token_data);
-    file.write_all(ts_data.as_bytes()).expect("Failed to write serialized token object");
+    file.write_all(ts_data.as_bytes())
+        .expect("Failed to write serialized token object");
 
     Ok(())
 }
