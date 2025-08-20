@@ -10,13 +10,13 @@ mod usage_parser;
 
 use cli_navigator_toolkit::{
     run_cli_parser, run_cli_replicator, run_keyword_extractor, run_summary_generator,
-    run_webpage_generator,
+    run_install_web_files, run_interactive_serve,
 };
 use models::FileOutputFormat;
 use naive_tooltip_content_generator::write_ts_file;
 use std::{env::current_dir, path::PathBuf};
 
-use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use clap::{CommandFactory, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -64,19 +64,25 @@ enum Commands {
         #[arg(short, long, value_name = "FORMAT")]
         format: Option<String>,
     },
-    /// Genrates a static webpage with the CLI structure
-    Webpage {
-        /// Input JSON file
-        #[arg(value_name = "INPUT_JSON")]
-        input_json: Option<PathBuf>,
-
-        /// Output path for the webpage
-        #[arg(short, long, value_name = "OUTPUT_PATH")]
-        output_dir: Option<PathBuf>,
-
-        /// Force the overwrite of the output directory if it exists
-        #[arg(short, long, value_name = "force")]
+    /// Installs web interface files to ~/.config/clint/templates/default
+    Install {
+        /// Force overwrite of existing files
+        #[arg(short, long)]
         force: bool,
+    },
+    /// Starts an HTTP server to serve the CLI documentation
+    Serve {
+        /// Template to use (default: "default")
+        #[arg(short, long, value_name = "TEMPLATE")]
+        template: Option<String>,
+
+        /// Port for the web server (default: 8899)
+        #[arg(short, long, value_name = "PORT")]
+        port: Option<u16>,
+
+        /// Path to a specific JSON file to serve (skips interactive selection)
+        #[arg(short, long, value_name = "JSON_FILE")]
+        input: Option<PathBuf>,
     },
     /// Generates a replica of the CLI program in RustLang using the clap library
     Replicate {
@@ -111,11 +117,10 @@ fn main() {
 
     match &cli.command {
         Some(Commands::Parse { name, output_file }) => {
-            let out_path = match output_file {
-                Some(path) => path,
-                None => &PathBuf::from(format!("./{}_cli_structure.json", name).to_string()),
-            };
-            run_cli_parser(name, out_path);
+            run_cli_parser(name, output_file.as_ref());
+        }
+        Some(Commands::Install { force }) => {
+            run_install_web_files(*force);
         }
         Some(Commands::UniqueKeywords {
             input_json,
@@ -215,57 +220,12 @@ fn main() {
                 output_file_format.expect("Failed to get output format"),
             );
         }
-        Some(Commands::Webpage {
-            input_json,
-            output_dir,
-            force,
+        Some(Commands::Serve {
+            template,
+            port,
+            input,
         }) => {
-            let input_json = match input_json {
-                Some(path) => path,
-                None => {
-                    println!("No input JSON file provided.");
-                    return;
-                }
-            };
-            match output_dir {
-                Some(path) => match path.exists() {
-                    true => {
-                        if *force {
-                            println!("Output directory already exists. Overwriting contents.");
-                            std::fs::create_dir_all(path)
-                                .expect("Failed to create output directory");
-                            run_webpage_generator(input_json, path);
-                        } else {
-                            let mut cmd = Cli::command();
-                            cmd.error(
-                      ErrorKind::InvalidValue,
-                      "Output directory already exists. Please provide a different path or use the -f / --force option to overwrite its contents.",
-                    )
-                    .exit()
-                        }
-                    }
-                    false => {
-                        println!("Creating output path: {:?}", &path);
-                        std::fs::create_dir_all(path).expect("Failed to create output directory");
-                        run_webpage_generator(input_json, path);
-                    }
-                },
-                None => {
-                    let input_file_name = input_json.with_extension("");
-                    let input_json_file_name = match input_file_name.file_name() {
-                        Some(name) => name.to_str(),
-                        None => None,
-                    };
-                    let current_dir = current_dir().expect("Failed to get current directory");
-                    let output_path = current_dir.join(format!(
-                        "./out/{}-webpage",
-                        input_json_file_name.unwrap_or("output")
-                    ));
-                    std::fs::create_dir_all(&output_path)
-                        .expect("Failed to create output directory");
-                    run_webpage_generator(input_json, &output_path);
-                }
-            };
+            run_interactive_serve(template.as_ref(), *port, input.as_ref());
         }
         Some(Commands::Replicate {
             input_json,

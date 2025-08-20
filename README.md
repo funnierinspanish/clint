@@ -1,47 +1,60 @@
 
 # CLINT: CLI Navigator Toolkit
 
-A Command Line Tool that helps you navigate other CLIs.
+A powerful Command Line Tool that helps you analyze, visualize, and navigate CLI applications with ease.
 
-This is a _Rustification_ of [https://github.com/funnierinspanish/cli-explorer-toolchain_legacy](https://github.com/funnierinspanish/cli-explorer-toolchain_legacy), even though the original project is not maintained anymore, it is still a great resource to explore CLI tools.
+CLINT is a complete rewrite and enhancement of [cli-explorer-toolchain_legacy](https://github.com/funnierinspanish/cli-explorer-toolchain_legacy), built from the ground up in Rust for better performance and reliability.
 
 ## Features
 
-### Extract a CLI tool's structure
+### CLI Structure Analysis
 
-Recursively navigates through a CLI tool using its _help page_ output and extracts the structure of the tool, including commands, subcommands, flags, and their occurrences.
+Recursively analyzes CLI tools by parsing their help output, extracting comprehensive information about:
 
-### Unique _Keywords_
+- Commands and subcommands hierarchy
+- All available flags (short and long forms)
+- Usage patterns and descriptions
+- Command depth and relationships
 
-Generates a summary of the CLI tool's structure in different formats:
+### Data Export & Analysis
 
-- **Markdown**: A human-readable markdown file.
-- **Plain Text**: A simplified human-readable plain text file.
-- **JSON**: A structured JSON file that contains the structure of the CLI tool.
+Generate detailed reports in multiple formats:
 
-### Generate a Summary
+- **JSON**: Structured data for programmatic use
+- **Markdown**: Human-readable documentation
+- **Plain Text**: Simple text summaries
 
-Generates a summary of the CLI tool's structure in different formats:
+Export types:
 
-- **Markdown**: A human-readable markdown file.
-- **Plain Text**: A simplified human-readable plain text file.
-- **JSON**: A structured JSON file that contains the structure of the CLI tool.
+- **Complete Structure**: Full CLI hierarchy with all details
+- **Keywords Summary**: Unique commands, subcommands, and flags
+- **Statistical Summary**: Counts and metrics about the CLI
 
-### Generate a web-based visualization
+### Interactive Web Interface
 
-Generates a web-based visualization of the CLI tool's structure using simplified HTML and JavaScript.
+Built-in HTTP server with a modern web interface featuring:
 
-### Replicate a CLI tool
+- **Interactive Navigation**: Browse CLI structure visually
+- **Search & Filter**: Find commands and flags quickly
+- **Template System**: Customizable themes and layouts
+- **Hot Reloading**: Instant updates during development
 
-Generates a replica of the CLI tool in Rust using the `clap` library. This includes commands, subcommands, and flags, and creates placeholders for the implementation of each command. It is meant to be a starting point for building experiments with Developer Experience (DX) in mind.
+### Smart Serving Options
 
-Example:
+Flexible serving modes:
 
-```plain
-cargo run -- replicate out/hugo/hugo-structure.json -o out/hugo/replica
-```
+- **Interactive Selection**: Choose from automatically detected CLI apps
+- **Direct File Serving**: Serve specific JSON files directly
+- **Custom Port Selection**: Use any available port (default: 8899)
+- **Template Customization**: Switch between different themes
 
-A new rust project will be created in the `out/hugo/replica` directory with a pre-built binary. You can then modify any of the commands and subcommands to implement your own logic.
+### CLI Replication
+
+Generate working Rust code replicas using the `clap` library:
+
+- Complete command structure recreation
+- Placeholder implementations for rapid prototyping
+- Developer Experience (DX) experimentation platform
 
 ## Schema Support
 
@@ -56,20 +69,80 @@ Both schemas support enhanced metadata including:
 - `command_path`: Full command path (e.g., "flexai training runtime list")
 - Optional `description` field to handle CLI parsing edge cases
 
-## Usage
+## Quick Start
 
-```plain
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/funnierinspanish/clint.git
+cd clint
+
+# Build the project
+cargo build --release
+
+# Install web interface templates
+./target/release/clint install
+```
+
+### Basic Usage
+
+```bash
+# Parse a CLI tool and extract its structure
+clint parse git
+
+# Serve an interactive web interface
+clint serve
+
+# Serve a specific JSON file on a custom port
+clint serve --input my-cli-structure.json --port 9000
+
+# Extract keywords from a parsed CLI
+clint unique-keywords
+
+# Generate a statistical summary
+clint summary
+
+# Replicate a CLI structure in Rust
+clint replicate my-cli-structure.json --output ./replica
+```
+
+## Commands Reference
+
+```
 Usage: clint [COMMAND]
 
 Commands:
-  parse            Parses a CLI program written with the Cobra library and generates a JSON file with its structure
-  unique-keywords  Extracts unique keywords (commands, subcommands, and flags) from a parsed JSON file
-  summary          Generates a summary of the CLI structure
-  webpage          Genrates a static webpage with the CLI structure
-  replicate        Generates a replica of the CLI program in RustLang using the clap library
-  help             Print this message or the help of the given subcommand(s)
+  parse            Parse a CLI program and generate JSON structure
+  install          Install web interface templates to ~/.config/clint
+  serve            Start HTTP server for interactive CLI exploration
+  unique-keywords  Extract unique keywords from parsed CLI data
+  summary          Generate statistical summary of CLI structure
+  replicate        Generate Rust code replica using clap library
+  help             Print help information
 
 Options:
   -h, --help     Print help
   -V, --version  Print version
+```
+
+### Serve Command Options
+
+The `serve` command offers flexible options for exploring CLI data:
+
+```bash
+# Interactive mode - choose from detected CLI apps
+clint serve
+
+# Serve specific file with default port (8899)
+clint serve --input path/to/cli-structure.json
+
+# Use custom port
+clint serve --port 3000
+
+# Use custom template
+clint serve --template my-theme
+
+# Combine options
+clint serve --input app.json --port 8080 --template dark
 ```

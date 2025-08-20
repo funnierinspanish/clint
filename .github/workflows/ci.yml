@@ -133,11 +133,11 @@ jobs:
           echo "No CLI structure generated - skipping validation"
         fi
 
-    - name: Test webpage generation
+    - name: Test serve generation
       run: |
         if [ -f "out/flexai/*/flexai-structure.json" ]; then
-          ./target/release/clint webpage out/flexai/*/flexai-structure.json
-          ls -la out/flexai-structure-webpage/
+          ./target/release/clint serve out/flexai/*/flexai-structure.json
+          ls -la out/*-serve/
         fi
 
   schema:
