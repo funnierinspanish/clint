@@ -1,9 +1,13 @@
 
 # CLINT: CLI Navigator Toolkit
 
-A powerful Command Line Tool that helps you analyze, visualize, and navigate CLI applications with ease.
+A Command Line Tool that helps you analyze, visualize, and navigate CLI applications with ease.
 
-CLINT is a complete rewrite and enhancement of [cli-explorer-toolchain_legacy](https://github.com/funnierinspanish/cli-explorer-toolchain_legacy), built from the ground up in Rust for better performance and reliability.
+> Note: This project has been developed for [CLI apps that use the Cobra framework](https://github.com/spf13/cobra) —initially. More to come soon.
+
+CLINT is a complete rewrite and enhancement of [cli-explorer-toolchain_legacy](https://github.com/funnierinspanish/cli-explorer-toolchain_legacy), built from the ground up in Rust for better performance and reliability (and because 🦀).
+
+> This is a WiP project. Several things work, but not everything is _fully_ implemented yet.
 
 ## Features
 
@@ -194,25 +198,9 @@ clint serve --input app.json --port 8080 --template dark
 
 ## Troubleshooting
 
-### Installation Issues
-
-If `cargo install --git` fails, try:
-
-```bash
-# Update Rust toolchain
-rustup update
-
-# Clear cargo cache
-cargo clean
-
-# Install with verbose output for debugging
-cargo install --git https://github.com/funnierinspanish/clint.git --verbose
-```
-
 ### Template Download Issues
 
 If automatic template download fails:
 
-1. **Manual template download**: Run `clint get-template`
-2. **Manual download**: Download files from [GitHub](https://github.com/funnierinspanish/clint/tree/main/src/web) to `~/.config/clint/templates/default/`
-3. **Use embedded**: CLINT works without templates using embedded interface
+- Run `clint get-template`
+- Download the files from [GitHub](https://github.com/funnierinspanish/clint/tree/main/src/web) to `~/.config/clint/templates/default/`

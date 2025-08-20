@@ -13,7 +13,6 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
     - name: Get the version
@@ -22,12 +21,12 @@ jobs:
 
     - name: Create Release
       id: release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.get_version.outputs.version }}
-        release_name: Release ${{ steps.get_version.outputs.version }}
+        name: Release ${{ steps.get_version.outputs.version }}
         draft: false
         prerelease: false
 
@@ -85,15 +84,13 @@ jobs:
       run: |
         copy target\${{ matrix.target }}\release\clint.exe artifacts\clint-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.exe
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: artifacts/clint-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.suffix }}
-        asset_name: clint-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.suffix }}
-        asset_content_type: application/octet-stream
+        tag_name: ${{ needs.create-release.outputs.version }}
+        files: artifacts/*
 
   publish-crate:
     name: Publish to Crates.io
@@ -166,11 +163,9 @@ jobs:
         echo "- Full TypeScript type safety with Zod" >> SCHEMA_RELEASE.md
 
     - name: Upload schema documentation
-      uses: actions/upload-release-asset@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: SCHEMA_RELEASE.md
-        asset_name: schema-release-notes.md
-        asset_content_type: text/markdown
+        tag_name: ${{ needs.create-release.outputs.version }}
+        files: SCHEMA_RELEASE.md
