@@ -5,12 +5,11 @@ mod models;
 mod naive_tooltip_content_generator;
 mod replicator;
 mod summary_generator;
-mod typescript_writer;
 mod usage_parser;
 
 use cli_navigator_toolkit::{
     run_cli_parser, run_cli_replicator, run_keyword_extractor, run_summary_generator,
-    run_install_web_files, run_interactive_serve,
+    run_get_template_web_files, run_interactive_serve,
 };
 use models::FileOutputFormat;
 use naive_tooltip_content_generator::write_ts_file;
@@ -29,84 +28,58 @@ struct Cli {
 enum Commands {
     /// Parses a CLI program written with the Cobra library and generates a JSON file with its structure
     Parse {
-        /// Target CLI program name
         #[arg(value_name = "PROGRAM_NAME")]
         name: String,
-        /// Output path for the parsed CLI file
         #[arg(short, long, value_name = "PATH")]
         output_file: Option<PathBuf>,
     },
     /// Extracts unique keywords (commands, subcommands, and flags) from a parsed JSON file
     UniqueKeywords {
-        /// Input JSON file
         #[arg(value_name = "INPUT_JSON")]
         input_json: Option<PathBuf>,
-
-        /// Output path for the keywords file (Default: Current path and <input_file_name>-keywords.json)
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
-
-        /// Output format: markdown, json, text (Default: json)
         #[arg(short, long, value_name = "FORMAT")]
         format: Option<String>,
     },
     /// Generates a summary of the CLI structure
     Summary {
-        /// Input JSON file
         #[arg(value_name = "INPUT_JSON")]
         input_json: Option<PathBuf>,
-
-        /// Output path for the summary file (Default: Current path and <input_file_name>-summary.json)
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
-
-        /// Output format: markdown, json, text (Default: json)
         #[arg(short, long, value_name = "FORMAT")]
         format: Option<String>,
     },
-    /// Installs web interface files to ~/.config/clint/templates/default
-    Install {
-        /// Force overwrite of existing files
+    /// Downloads web interface templates to ~/.config/clint/templates/default for customization (optional - embedded templates used by default)
+    GetTemplate {
         #[arg(short, long)]
         force: bool,
     },
     /// Starts an HTTP server to serve the CLI documentation
     Serve {
-        /// Template to use (default: "default")
         #[arg(short, long, value_name = "TEMPLATE")]
         template: Option<String>,
-
-        /// Port for the web server (default: 8899)
         #[arg(short, long, value_name = "PORT")]
         port: Option<u16>,
-
-        /// Path to a specific JSON file to serve (skips interactive selection)
         #[arg(short, long, value_name = "JSON_FILE")]
         input: Option<PathBuf>,
     },
     /// Generates a replica of the CLI program in RustLang using the clap library
     Replicate {
-        /// Input JSON file
         #[arg(value_name = "INPUT_JSON")]
         input_json: Option<PathBuf>,
-
-        /// Output path for the Rust file
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
-        /// Keep the original clap-generated help flags/subcommand
         #[arg(long, default_value_t = false)]
         keep_help_flags: bool,
-        /// Keep the original clap-generated verbose flags
         #[arg(long, default_value_t = false)]
         keep_verbose_flags: bool,
     },
     /// Generates the TypeScript file for the NaiveTooltip component
     NaiveTooltip {
-        /// Input JSON file
         #[arg(value_name = "INPUT_JSON")]
         input_json: Option<PathBuf>,
-
-        /// Output path for the Rust file
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
     },
@@ -119,8 +92,8 @@ fn main() {
         Some(Commands::Parse { name, output_file }) => {
             run_cli_parser(name, output_file.as_ref());
         }
-        Some(Commands::Install { force }) => {
-            run_install_web_files(*force);
+        Some(Commands::GetTemplate { force }) => {
+            run_get_template_web_files(*force);
         }
         Some(Commands::UniqueKeywords {
             input_json,

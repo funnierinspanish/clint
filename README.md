@@ -73,6 +73,18 @@ Both schemas support enhanced metadata including:
 
 ### Installation
 
+#### Option 1: Install directly from GitHub (Recommended)
+
+```bash
+# Install directly from the Git repository
+cargo install --git https://github.com/funnierinspanish/clint.git
+
+# Verify installation
+clint --version
+```
+
+#### Option 2: Build from source
+
 ```bash
 # Clone the repository
 git clone https://github.com/funnierinspanish/clint.git
@@ -81,8 +93,34 @@ cd clint
 # Build the project
 cargo build --release
 
-# Install web interface templates
-./target/release/clint install
+# Add to PATH or use directly
+./target/release/clint --version
+```
+
+### First Run
+
+No setup required! CLINT works out of the box:
+
+```bash
+# Parse a CLI tool - creates data automatically
+clint parse git
+
+# Start web interface - downloads templates on first run
+clint serve
+```
+
+On first use of the `serve` command, CLINT will:
+
+- Detect if web templates are missing
+- Offer to download them automatically from GitHub
+- Fall back to embedded templates if download fails
+- Provide manual template download instructions if needed
+
+### Optional: Manual Template Download
+
+```bash
+# Download web interface templates manually (optional)
+clint get-template
 ```
 
 ### Basic Usage
@@ -109,12 +147,12 @@ clint replicate my-cli-structure.json --output ./replica
 
 ## Commands Reference
 
-```
+```text
 Usage: clint [COMMAND]
 
 Commands:
   parse            Parse a CLI program and generate JSON structure
-  install          Install web interface templates to ~/.config/clint
+  get-template     Download web interface templates to ~/.config/clint
   serve            Start HTTP server for interactive CLI exploration
   unique-keywords  Extract unique keywords from parsed CLI data
   summary          Generate statistical summary of CLI structure
@@ -128,7 +166,7 @@ Options:
 
 ### Serve Command Options
 
-The `serve` command offers flexible options for exploring CLI data:
+The `serve` command offers flexible options for exploring CLI data with automatic template management:
 
 ```bash
 # Interactive mode - choose from detected CLI apps
@@ -146,3 +184,35 @@ clint serve --template my-theme
 # Combine options
 clint serve --input app.json --port 8080 --template dark
 ```
+
+#### Template Management
+
+- **Auto-download**: On first run, CLINT will offer to download web templates from GitHub
+- **Fallback**: If templates are missing or download fails, embedded templates are used automatically
+- **No interruption**: The server always starts successfully regardless of template status
+- **Customization**: Downloaded templates can be customized in `~/.config/clint/templates/`
+
+## Troubleshooting
+
+### Installation Issues
+
+If `cargo install --git` fails, try:
+
+```bash
+# Update Rust toolchain
+rustup update
+
+# Clear cargo cache
+cargo clean
+
+# Install with verbose output for debugging
+cargo install --git https://github.com/funnierinspanish/clint.git --verbose
+```
+
+### Template Download Issues
+
+If automatic template download fails:
+
+1. **Manual template download**: Run `clint get-template`
+2. **Manual download**: Download files from [GitHub](https://github.com/funnierinspanish/clint/tree/main/src/web) to `~/.config/clint/templates/default/`
+3. **Use embedded**: CLINT works without templates using embedded interface

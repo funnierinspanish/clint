@@ -3,7 +3,11 @@ name = "clint"
 description = "CLI Navigator Toolkit (CLINT) meant for people doing 'Developer Experience' work. It helps you get a better understanding of the structure of CLI tools to improve their usability."
 authors = ["Diego Coy (https://github.com/funnierinspanish)"]
 repository = "https://github.com/funnierinspanish/clint"
-version = "0.2.0"
+license = "MIT"
+readme = "README.md"
+keywords = ["cli", "developer-experience", "tools", "analysis", "visualization"]
+categories = ["command-line-utilities", "development-tools", "visualization"]
+version = "0.5.0"
 edition = "2024"
 
 [dependencies]
@@ -16,3 +20,4 @@ dialoguer = "0.11"
 tokio = { version = "1.0", features = ["full"] }
 warp = "0.3"
 rand = "0.8"
+atty = "0.2.14"

@@ -8,7 +8,7 @@ use std::fs;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::{SystemTime, UNIX_EPOCH};
-use dialoguer::Select;
+use dialoguer::{Select, Confirm};
 use warp::Filter;
 
 use crate::cli_parser;
@@ -28,15 +28,12 @@ fn get_config_dir_path(program_name: &str, program_version: &str) -> PathBuf {
         .join("parsed")
         .join(program_name);
     
-    // Create the directory if it doesn't exist
     fs::create_dir_all(&config_dir)
         .expect("Failed to create config directory");
     
-    // Handle empty or unknown versions
     let version_suffix = if program_version.is_empty() || program_version == "Unknown" {
         "unknown".to_string()
     } else {
-        // Sanitize version string to be filesystem-safe
         program_version
             .replace('/', "_")
             .replace('\\', "_")
@@ -53,7 +50,7 @@ fn get_config_dir_path(program_name: &str, program_version: &str) -> PathBuf {
     config_dir.join(format!("{}-{}.json", program_name, version_suffix))
 }
 
-pub fn run_install_web_files(force: bool) {
+pub fn run_get_template_web_files(force: bool) {
     let home_dir = env::var("HOME")
         .or_else(|_| env::var("USERPROFILE"))
         .expect("Could not find home directory");
@@ -69,9 +66,7 @@ pub fn run_install_web_files(force: bool) {
     fs::create_dir_all(&templates_dir)
         .expect("Failed to create templates directory");
     
-    // Handle existing default directory
     if default_template_dir.exists() && !force {
-        // Generate a random backup hash
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
@@ -80,7 +75,7 @@ pub fn run_install_web_files(force: bool) {
         let mut hasher = DefaultHasher::new();
         timestamp.hash(&mut hasher);
         let hash = hasher.finish();
-        let backup_hash = format!("{:06x}", hash % 0x1000000); // 6 hex digits
+        let backup_hash = format!("{:06x}", hash % 0x1000000);
         
         let backup_dir = templates_dir.join(format!("default_backup_{}", backup_hash));
         
@@ -91,31 +86,167 @@ pub fn run_install_web_files(force: bool) {
             .expect("Failed to create backup of existing default template");
     }
     
-    // Create the default template directory
     fs::create_dir_all(&default_template_dir)
         .expect("Failed to create default template directory");
     
-    // Define the web files to copy
-    let web_files = [
-        ("cli-command-card.js", include_str!("web/cli-command-card.js")),
-        ("index.html", include_str!("web/index.html")),
-        ("script.js", include_str!("web/script.js")),
-    ];
+    println!("Getting web interface files to: {}", default_template_dir.display());
     
-    println!("Installing web interface files to: {}", default_template_dir.display());
+    match download_template_from_github(&default_template_dir) {
+        Ok(()) => {
+            println!("\nWeb interface template download complete!");
+            println!("Files saved to: {}", default_template_dir.display());
+            println!("Tip: These files can be customized. The serve command will use your custom template when available.");
+        }
+        Err(e) => {
+            println!("✗ Failed to download template: {}", e);
+            show_manual_template_download_instructions(&default_template_dir);
+        }
+    }
+}
+
+fn check_and_offer_template_download() -> Option<PathBuf> {
+    let home_dir = env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .expect("Could not find home directory");
     
-    for (filename, content) in &web_files {
-        let target_path = default_template_dir.join(filename);
-        
-        fs::write(&target_path, content)
-            .unwrap_or_else(|e| panic!("Failed to write {}: {}", filename, e));
-        
-        println!("Installed: {}", filename);
+    let templates_dir = PathBuf::from(home_dir)
+        .join(".config")
+        .join("clint")
+        .join("templates");
+    
+    let default_template_dir = templates_dir.join("default");
+    
+    // Check if default template directory exists and has files
+    let template_exists = if default_template_dir.exists() {
+        // Check if directory has the required files
+        let required_files = ["index.html", "script.js", "cli-command-card.js"];
+        required_files.iter().all(|&file| {
+            let file_path = default_template_dir.join(file);
+            file_path.exists() && fs::metadata(&file_path).map_or(false, |meta| meta.len() > 0)
+        })
+    } else {
+        false
+    };
+    
+    if template_exists {
+        return Some(default_template_dir);
     }
     
-    println!("\nWeb interface installation complete!");
-    println!("Files installed to: {}", default_template_dir.display());
-    println!("Tip: You can now use 'clint serve' to generate web interfaces that use these files.");
+    // Template doesn't exist or is incomplete
+    println!("\nDefault web template not found or incomplete.");
+    println!("The serve command needs web interface files to display CLI data.");
+    println!("");
+    
+    // Check if we're in an interactive terminal
+    let is_interactive = atty::is(atty::Stream::Stdin);
+    
+    let should_download = if is_interactive {
+        match Confirm::new()
+            .with_prompt("Would you like to download the default template from GitHub?")
+            .default(true)
+            .interact() {
+                Ok(response) => response,
+                Err(_) => {
+                    println!("Unable to get user input, defaulting to manual template download.");
+                    false
+                }
+            }
+    } else {
+        println!("Non-interactive environment detected.");
+        println!("To download templates automatically, run: clint get-template");
+        println!("Or manually download from GitHub (see instructions below).");
+        false
+    };
+    
+    if should_download {
+        // Create the templates directory if it doesn't exist
+        if let Err(e) = fs::create_dir_all(&templates_dir) {
+            println!("Failed to create templates directory: {}", e);
+            return None;
+        }
+        
+        // Download template files from GitHub
+        match download_template_from_github(&default_template_dir) {
+            Ok(()) => {
+                println!("✓ Template downloaded successfully!");
+                Some(default_template_dir)
+            }
+            Err(e) => {
+                println!("✗ Failed to download template: {}", e);
+                show_manual_template_download_instructions(&default_template_dir);
+                None
+            }
+        }
+    } else {
+        show_manual_template_download_instructions(&default_template_dir);
+        None
+    }
+}
+
+fn download_template_from_github(target_dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+    
+    println!("Downloading template files from GitHub...");
+    
+    // Create target directory
+    fs::create_dir_all(target_dir)?;
+    
+    let base_url = "https://raw.githubusercontent.com/funnierinspanish/clint/main/src/web";
+    let files = [
+        ("index.html", "index.html"),
+        ("script.js", "script.js"), 
+        ("cli-command-card.js", "cli-command-card.js"),
+    ];
+    
+    for (filename, url_path) in &files {
+        let url = format!("{}/{}", base_url, url_path);
+        let target_path = target_dir.join(filename);
+        
+        println!("  Downloading {}...", filename);
+        
+        // Try using curl first, then wget as fallback
+        let download_success = Command::new("curl")
+            .args(&["-fsSL", &url, "-o", target_path.to_str().unwrap()])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+        
+        if !download_success {
+            // Try wget as fallback
+            let wget_success = Command::new("wget")
+                .args(&["-q", &url, "-O", target_path.to_str().unwrap()])
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false);
+            
+            if !wget_success {
+                return Err(format!("Failed to download {} (tried curl and wget)", filename).into());
+            }
+        }
+        
+        // Verify the file was downloaded and is not empty
+        if !target_path.exists() || fs::metadata(&target_path)?.len() == 0 {
+            return Err(format!("Downloaded file {} is empty or missing", filename).into());
+        }
+    }
+    
+    Ok(())
+}
+
+fn show_manual_template_download_instructions(target_dir: &PathBuf) {
+    println!("");
+    println!("Manual template download instructions:");
+    println!("1. Download the template files from:");
+    println!("   https://github.com/funnierinspanish/clint/tree/main/src/web");
+    println!("2. Save them to this directory:");
+    println!("   {}", target_dir.display());
+    println!("3. Required files:");
+    println!("   - index.html");
+    println!("   - script.js");
+    println!("   - cli-command-card.js");
+    println!("");
+    println!("Alternatively, you can run 'clint get-template' to download the default template.");
+    println!("");
 }
 
 pub fn run_cli_parser(command: &str, output_path: Option<&PathBuf>) {
@@ -302,7 +433,7 @@ pub fn run_interactive_serve(template: Option<&String>, port: Option<u16>, input
     
     // Check if specific input file is provided
     if let Some(input_path) = input_file {
-        serve_specific_file(input_path, template, port, &home_dir);
+        serve_specific_file(input_path, template, port);
         return;
     }
     
@@ -318,10 +449,14 @@ pub fn run_interactive_serve(template: Option<&String>, port: Option<u16>, input
         return;
     }
     
-    serve_with_interactive_selection(&home_dir, &parsed_dir, template, port);
+    serve_with_interactive_selection(&parsed_dir, port);
 }
 
-fn serve_specific_file(input_path: &PathBuf, template: Option<&String>, port: Option<u16>, home_dir: &str) {
+fn serve_specific_file(input_path: &PathBuf, template: Option<&String>, port: Option<u16>) {
+    let home_dir = env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .expect("Could not find home directory");
+        
     // Validate that the input file exists and is not empty
     if !input_path.exists() {
         println!("Input file not found: {}", input_path.display());
@@ -360,18 +495,33 @@ fn serve_specific_file(input_path: &PathBuf, template: Option<&String>, port: Op
         }
     }
     
-    // Determine template to use
+    // Determine template to use - check for custom template, then default template, then embedded
     let template_name = template.map(|s| s.as_str()).unwrap_or("default");
-    let template_path = PathBuf::from(home_dir)
+    let custom_template_path = PathBuf::from(home_dir)
         .join(".config")
         .join("clint")
         .join("templates")
         .join(template_name);
     
-    if !template_path.exists() {
-        println!("Template '{}' not found: {}", template_name, template_path.display());
+    let (template_path, template_source) = if custom_template_path.exists() && template_name != "default" {
+        // Use custom template
+        (custom_template_path, format!("custom template: {}", template_name))
+    } else if template_name == "default" {
+        // For default template, check and offer to download if needed
+        match check_and_offer_template_download() {
+            Some(default_path) => (default_path, "downloaded template".to_string()),
+            None => {
+                println!("Cannot serve without web templates. Please:");
+                println!("1. Run 'clint get-template' to download templates");
+                println!("2. Or manually download files from GitHub to ~/.config/clint/templates/default/");
+                return;
+            }
+        }
+    } else {
+        // Requested template doesn't exist
+        println!("Template '{}' not found: {}", template_name, custom_template_path.display());
         println!("Available templates:");
-        let templates_dir = template_path.parent().unwrap();
+        let templates_dir = custom_template_path.parent().unwrap();
         if let Ok(entries) = fs::read_dir(templates_dir) {
             for entry in entries.flatten() {
                 if entry.file_type().map_or(false, |ft| ft.is_dir()) {
@@ -380,10 +530,12 @@ fn serve_specific_file(input_path: &PathBuf, template: Option<&String>, port: Op
                     }
                 }
             }
+        } else {
+            println!("  (no templates directory found)");
         }
-        println!("Or run 'clint install' to create the default template");
+        println!("Cannot serve without templates.");
         return;
-    }
+    };
     
     // Extract app name and version from file path/name for display
     let file_name = input_path.file_stem()
@@ -397,7 +549,7 @@ fn serve_specific_file(input_path: &PathBuf, template: Option<&String>, port: Op
     };
     
     println!("Starting HTTP server for {} version {}...", app_name, version);
-    println!("Template: {}", template_name);
+    println!("Template: {}", template_source);
     println!("JSON file: {}", input_path.display());
     
     // Start HTTP server with specific JSON file
@@ -411,7 +563,7 @@ fn serve_specific_file(input_path: &PathBuf, template: Option<&String>, port: Op
     ));
 }
 
-fn serve_with_interactive_selection(home_dir: &str, parsed_dir: &PathBuf, template: Option<&String>, port: Option<u16>) {
+fn serve_with_interactive_selection(parsed_dir: &PathBuf, port: Option<u16>) {
     // Get all directories with JSON files
     let mut apps_with_data = Vec::new();
     
@@ -543,34 +695,21 @@ fn serve_with_interactive_selection(home_dir: &str, parsed_dir: &PathBuf, templa
     let selected_json_path = &json_files[version_selection].1;
     let selected_version = extract_version_from_filename(&json_files[version_selection].0);
     
-    // Determine template to use
-    let template_name = template.map(|s| s.as_str()).unwrap_or("default");
-    let template_path = PathBuf::from(home_dir)
-        .join(".config")
-        .join("clint")
-        .join("templates")
-        .join(template_name);
-    
-    if !template_path.exists() {
-        println!("Template '{}' not found: {}", template_name, template_path.display());
-        println!("Available templates:");
-        let templates_dir = template_path.parent().unwrap();
-        if let Ok(entries) = fs::read_dir(templates_dir) {
-            for entry in entries.flatten() {
-                if entry.file_type().map_or(false, |ft| ft.is_dir()) {
-                    if let Some(name) = entry.file_name().to_str() {
-                        println!("  - {}", name);
-                    }
-                }
-            }
+    // Check and offer to download default template if needed
+    let template_path = match check_and_offer_template_download() {
+        Some(path) => path,
+        None => {
+            println!("Cannot serve without web templates. Please:");
+            println!("1. Run 'clint get-template' to download templates");
+            println!("2. Or manually download files from GitHub to ~/.config/clint/templates/default/");
+            return;
         }
-        println!("Or run 'clint install' to create the default template");
-        return;
-    }
+    };
+    let template_source = "downloaded template";
     
     // Start HTTP server with selected JSON data
     println!("Starting HTTP server for {} version {}...", selected_app, selected_version);
-    println!("Template: {}", template_name);
+    println!("Template: {}", template_source);
     
     // Run the async server
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
@@ -613,9 +752,8 @@ async fn start_http_server(
             warp::reply::with_header(content, "content-type", "application/json")
         });
 
-    // Create filter for serving static files from template directory
-    let template_path_clone = template_path.clone();
-    let static_files = warp::fs::dir(template_path_clone)
+    // Create routes using filesystem templates
+    let static_files = warp::fs::dir(template_path.clone())
         .with(warp::log("template_files"));
 
     // Add a root redirect to index.html
@@ -626,7 +764,8 @@ async fn start_http_server(
     let routes = cli_structure
         .or(root_redirect)
         .or(static_files)
-        .with(warp::log("clint_server"));
+        .with(warp::log("clint_server"))
+        .boxed();
 
     // Use provided port or find an available one starting from 8899
     let server_port = match port {
@@ -654,10 +793,16 @@ async fn start_http_server(
         }
     };
     
+    let using_custom_template = !template_path.ends_with("templates/default");
+    
     println!("Server starting...");
     println!("Open your browser and navigate to: http://localhost:{}", server_port);
     println!("Serving: {} version {}", app_name, version);
-    println!("Template: {}", template_path.display());
+    if using_custom_template {
+        println!("Using custom template: {}", template_path.display());
+    } else {
+        println!("Using default template");
+    }
     println!("Press Ctrl+C to stop the server");
     println!("");
     
