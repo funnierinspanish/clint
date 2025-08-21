@@ -534,10 +534,10 @@ fn serve_specific_file(input_path: &PathBuf, template: Option<&String>, port: Op
         let templates_dir = custom_template_path.parent().unwrap();
         if let Ok(entries) = fs::read_dir(templates_dir) {
             for entry in entries.flatten() {
-                if entry.file_type().is_ok_and(|ft| ft.is_dir()) {
-                    if let Some(name) = entry.file_name().to_str() {
-                        println!("  - {}", name);
-                    }
+                if entry.file_type().is_ok_and(|ft| ft.is_dir())
+                    && let Some(name) = entry.file_name().to_str()
+                {
+                    println!("  - {}", name);
                 }
             }
         } else {
@@ -641,14 +641,12 @@ fn serve_with_interactive_selection(parsed_dir: &PathBuf, port: Option<u16>) {
     let mut json_files = Vec::new();
     if let Ok(entries) = fs::read_dir(selected_app_dir) {
         for entry in entries.flatten() {
-            if entry.path().extension().is_some_and(|ext| ext == "json") {
-                if let Some(filename) = entry.file_name().to_str() {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.len() > 0 {
-                            json_files.push((filename.to_string(), entry.path(), metadata));
-                        }
-                    }
-                }
+            if entry.path().extension().is_some_and(|ext| ext == "json")
+                && let Some(filename) = entry.file_name().to_str()
+                && let Ok(metadata) = entry.metadata()
+                && metadata.len() > 0
+            {
+                json_files.push((filename.to_string(), entry.path(), metadata));
             }
         }
     }
@@ -880,14 +878,14 @@ fn extract_version_from_filename(filename: &str) -> String {
 
 fn parse_semver(version: &str) -> Option<(u32, u32, u32)> {
     let parts: Vec<&str> = version.split('.').collect();
-    if parts.len() >= 3 {
-        if let (Ok(major), Ok(minor), Ok(patch)) = (
+    if parts.len() >= 3
+        && let (Ok(major), Ok(minor), Ok(patch)) = (
             parts[0].parse::<u32>(),
             parts[1].parse::<u32>(),
             parts[2].parse::<u32>(),
-        ) {
-            return Some((major, minor, patch));
-        }
+        )
+    {
+        return Some((major, minor, patch));
     }
     None
 }
