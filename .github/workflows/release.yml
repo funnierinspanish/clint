@@ -9,31 +9,19 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  create-release:
-    name: Create Release
+  get-version:
+    name: Get Version
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
     - name: Get the version
       id: get_version
       run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-    - name: Create Release
-      id: release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.get_version.outputs.version }}
-        release_name: Release ${{ steps.get_version.outputs.version }}
-        draft: false
-        prerelease: false
-
-  build-and-upload:
-    name: Build and Upload
-    needs: create-release
+  build-binaries:
+    name: Build Binaries
+    needs: get-version
     strategy:
       matrix:
         include:
@@ -78,26 +66,46 @@ jobs:
     - name: Copy binary (Unix)
       if: matrix.os != 'windows-latest'
       run: |
-        cp target/${{ matrix.target }}/release/clint artifacts/clint-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.suffix }}
+        cp target/${{ matrix.target }}/release/clint artifacts/clint-${{ needs.get-version.outputs.version }}-${{ matrix.target }}${{ matrix.suffix }}
 
     - name: Copy binary (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        copy target\${{ matrix.target }}\release\clint.exe artifacts\clint-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.exe
+        copy target\${{ matrix.target }}\release\clint.exe artifacts\clint-${{ needs.get-version.outputs.version }}-${{ matrix.target }}.exe
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: clint-${{ matrix.target }}
+        path: artifacts/*
+
+  create-release:
+    name: Create Release
+    needs: [get-version, build-binaries, update-schemas]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
+
+    - name: Create release with binaries
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: artifacts/clint-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.suffix }}
-        asset_name: clint-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.suffix }}
-        asset_content_type: application/octet-stream
+        tag_name: ${{ needs.get-version.outputs.version }}
+        name: Release ${{ needs.get-version.outputs.version }}
+        draft: false
+        prerelease: false
+        files: release-artifacts/*/*
 
   publish-crate:
     name: Publish to Crates.io
-    needs: [create-release, build-and-upload]
+    needs: create-release
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -120,7 +128,7 @@ jobs:
 
   update-schemas:
     name: Update Schema Documentation
-    needs: create-release
+    needs: get-version
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -150,15 +158,15 @@ jobs:
 
     - name: Generate schema documentation
       run: |
-        echo "# Schema Release ${{ needs.create-release.outputs.version }}" > SCHEMA_RELEASE.md
+        echo "# Schema Release ${{ needs.get-version.outputs.version }}" > SCHEMA_RELEASE.md
         echo "" >> SCHEMA_RELEASE.md
         echo "## JSON Schema" >> SCHEMA_RELEASE.md
         echo "- File: \`cli_structure.schema.json\`" >> SCHEMA_RELEASE.md
-        echo "- Version: ${{ needs.create-release.outputs.version }}" >> SCHEMA_RELEASE.md
+        echo "- Version: ${{ needs.get-version.outputs.version }}" >> SCHEMA_RELEASE.md
         echo "" >> SCHEMA_RELEASE.md
         echo "## Zod Schema" >> SCHEMA_RELEASE.md
         echo "- File: \`cli_structure.zod.ts\`" >> SCHEMA_RELEASE.md
-        echo "- Version: ${{ needs.create-release.outputs.version }}" >> SCHEMA_RELEASE.md
+        echo "- Version: ${{ needs.get-version.outputs.version }}" >> SCHEMA_RELEASE.md
         echo "" >> SCHEMA_RELEASE.md
         echo "## Features" >> SCHEMA_RELEASE.md
         echo "- Enhanced metadata support (depth, command_path)" >> SCHEMA_RELEASE.md
@@ -166,11 +174,7 @@ jobs:
         echo "- Full TypeScript type safety with Zod" >> SCHEMA_RELEASE.md
 
     - name: Upload schema documentation
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: actions/upload-artifact@v4
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: SCHEMA_RELEASE.md
-        asset_name: schema-release-notes.md
-        asset_content_type: text/markdown
+        name: schema-docs
+        path: SCHEMA_RELEASE.md

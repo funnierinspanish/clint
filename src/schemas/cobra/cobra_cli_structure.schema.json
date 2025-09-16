@@ -51,7 +51,7 @@
         },
         "command_path": {
           "type": "string",
-          "description": "Full command path (e.g., 'flexai training runtime list')"
+          "description": "Full command path (e.g., 'my_cli open socket all')"
         },
         "outputs": {
           "type": "object",

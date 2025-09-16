@@ -49,6 +49,35 @@ pub enum FileOutputFormat {
     Markdown,
     Json,
     Text,
+    Csv,
+}
+
+pub enum ParseOutputFormat {
+    Json,
+    JsonSchema,
+    ZodSchema,
+    ZodDirectory,
+}
+
+impl ParseOutputFormat {
+    pub fn from_str(format: &str) -> Option<Self> {
+        match format.to_lowercase().as_str() {
+            "json" => Some(ParseOutputFormat::Json),
+            "json-schema" => Some(ParseOutputFormat::JsonSchema),
+            "zod" => Some(ParseOutputFormat::ZodSchema),
+            "zod-dir" | "zod-directory" => Some(ParseOutputFormat::ZodDirectory),
+            _ => None,
+        }
+    }
+    
+    pub fn get_file_extension(&self) -> &'static str {
+        match self {
+            ParseOutputFormat::Json => "json",
+            ParseOutputFormat::JsonSchema => "schema.json",
+            ParseOutputFormat::ZodSchema => "zod.ts",
+            ParseOutputFormat::ZodDirectory => "", // Directory doesn't have an extension
+        }
+    }
 }
 
 impl FileOutputFormat {
@@ -59,6 +88,7 @@ impl FileOutputFormat {
             "txt" => Some(FileOutputFormat::Text),
             "markdown" => Some(FileOutputFormat::Markdown),
             "text" => Some(FileOutputFormat::Text),
+            "csv" => Some(FileOutputFormat::Csv),
             _ => Some(FileOutputFormat::Text),
         }
     }
@@ -83,6 +113,10 @@ impl OutputFile {
     }
     pub fn write_plain_output(&self, content: &str) {
         std::fs::write(&self.path, content).expect("Failed to write output file");
+    }
+    
+    pub fn write_csv_output(&self, content: &str) {
+        std::fs::write(&self.path, content).expect("Failed to write CSV output file");
     }
 
     fn write(&self, content: &str) {

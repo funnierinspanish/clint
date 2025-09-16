@@ -32,15 +32,15 @@ enum Commands {
         name: String,
         #[arg(short, long, value_name = "PATH")]
         output_file: Option<PathBuf>,
+        #[arg(short, long, value_name = "FORMAT", help = "Output format: json (default), zod, json-schema, or zod-dir")]
+        format: Option<String>,
     },
-    /// Extracts unique keywords (commands, subcommands, and flags) from a parsed JSON file
+    /// Extracts unique keywords (commands, subcommands, and flags) from a parsed JSON file (outputs as CSV)
     UniqueKeywords {
         #[arg(value_name = "INPUT_JSON")]
         input_json: Option<PathBuf>,
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
-        #[arg(short, long, value_name = "FORMAT")]
-        format: Option<String>,
     },
     /// Generates a summary of the CLI structure
     Summary {
@@ -89,8 +89,8 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Some(Commands::Parse { name, output_file }) => {
-            run_cli_parser(name, output_file.as_ref());
+        Some(Commands::Parse { name, output_file, format }) => {
+            run_cli_parser(name, output_file.as_ref(), format.as_ref());
         }
         Some(Commands::GetTemplate { force }) => {
             run_get_template_web_files(*force);
@@ -98,7 +98,6 @@ fn main() {
         Some(Commands::UniqueKeywords {
             input_json,
             output_path,
-            format,
         }) => {
             let input_json = match input_json {
                 Some(path) => path,
@@ -112,32 +111,20 @@ fn main() {
                 Some(name) => name.to_str(),
                 None => None,
             };
-            let out_path_extension = match output_path {
-                Some(path) => path.extension().expect("Failed to get extension").to_str(),
-                None => None,
-            };
             let output_path = match output_path {
                 Some(path) => path,
                 None => &current_dir()
                     .expect("Failed to get current directory")
                     .join(format!(
-                        "{}-keywords.json",
+                        "{}-keywords.csv",
                         input_json_file_name.unwrap_or("output")
                     )),
-            };
-            let output_file_format = if output_path.exists() && format.is_none() {
-                match out_path_extension {
-                    Some(ext) => FileOutputFormat::from_str(ext),
-                    None => FileOutputFormat::from_str("txt"),
-                }
-            } else {
-                FileOutputFormat::from_str("txt")
             };
 
             run_keyword_extractor(
                 input_json,
                 output_path,
-                output_file_format.expect("Failed to get output format"),
+                FileOutputFormat::Csv,
             );
         }
         Some(Commands::Summary {

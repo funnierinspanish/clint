@@ -1,5 +1,26 @@
 import { z } from 'zod';
 
+// Command component data types
+export enum CommandComponentDataType {
+  STRING = 'string',
+  INTEGER = 'integer', 
+  FLOAT = 'float',
+  BOOLEAN = 'boolean',
+  KEY_VALUE_MAPPING = 'key=value',
+  OPTION_LIST = 'option_list'
+}
+
+// Command Flag interface for generated command files
+export interface CommandFlag {
+  longName: string;
+  shortName?: string;
+  valueDataType: CommandComponentDataType | CommandComponentDataType[];
+  defaultValue?: string;
+  description: string;
+  required: boolean;
+  examples?: string[];
+}
+
 // Component type enum for usage parsing
 export const ComponentTypeSchema = z.enum([
   'Flag',
@@ -64,7 +85,7 @@ export const CommandSchema: z.ZodType<any> = z.lazy(() => z.object({
   parent: z.string(),
   parent_header: z.string().optional(),
   depth: z.number().int().min(0).optional().describe('Nesting depth of the command (0 for root, 1 for first level, etc.)'),
-  command_path: z.string().optional().describe('Full command path (e.g., "flexai training runtime list")'),
+  command_path: z.string().optional().describe('Full command path (e.g., "my_cli open socket all")'),
   outputs: z.record(z.string(), OutputsSchema).optional(),
   children: ChildrenSchema
 }));
