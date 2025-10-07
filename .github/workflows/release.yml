@@ -81,7 +81,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [get-version, build-binaries, update-schemas]
+    needs: [get-version, build-binaries]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -103,78 +103,3 @@ jobs:
         prerelease: false
         files: release-artifacts/*/*
 
-  publish-crate:
-    name: Publish to Crates.io
-    needs: create-release
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache Cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Publish to crates.io
-      run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-  update-schemas:
-    name: Update Schema Documentation
-    needs: get-version
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-
-    - name: Install dependencies
-      run: |
-        npm install -g ajv-cli
-        if [ -f "package.json" ]; then
-          npm install
-        fi
-
-    - name: Validate and process schemas
-      run: |
-        echo "Validating JSON Schema..."
-        ajv compile -s cli_structure.schema.json
-        
-        echo "Processing TypeScript schema..."
-        if [ -f "package.json" ]; then
-          npm run build 2>/dev/null || echo "TypeScript build skipped"
-        fi
-
-    - name: Generate schema documentation
-      run: |
-        echo "# Schema Release ${{ needs.get-version.outputs.version }}" > SCHEMA_RELEASE.md
-        echo "" >> SCHEMA_RELEASE.md
-        echo "## JSON Schema" >> SCHEMA_RELEASE.md
-        echo "- File: \`cli_structure.schema.json\`" >> SCHEMA_RELEASE.md
-        echo "- Version: ${{ needs.get-version.outputs.version }}" >> SCHEMA_RELEASE.md
-        echo "" >> SCHEMA_RELEASE.md
-        echo "## Zod Schema" >> SCHEMA_RELEASE.md
-        echo "- File: \`cli_structure.zod.ts\`" >> SCHEMA_RELEASE.md
-        echo "- Version: ${{ needs.get-version.outputs.version }}" >> SCHEMA_RELEASE.md
-        echo "" >> SCHEMA_RELEASE.md
-        echo "## Features" >> SCHEMA_RELEASE.md
-        echo "- Enhanced metadata support (depth, command_path)" >> SCHEMA_RELEASE.md
-        echo "- Optional description field" >> SCHEMA_RELEASE.md
-        echo "- Full TypeScript type safety with Zod" >> SCHEMA_RELEASE.md
-
-    - name: Upload schema documentation
-      uses: actions/upload-artifact@v4
-      with:
-        name: schema-docs
-        path: SCHEMA_RELEASE.md
