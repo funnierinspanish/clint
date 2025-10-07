@@ -9,8 +9,8 @@ mod summary_generator;
 mod usage_parser;
 
 use cli_navigator_toolkit::{
-    run_cli_parser, run_cli_replicator, run_get_template_web_files, run_interactive_serve,
-    run_keyword_extractor, run_summary_generator, run_cli_compare,
+    run_cli_compare, run_cli_parser, run_cli_replicator, run_get_template_web_files,
+    run_interactive_serve, run_keyword_extractor, run_summary_generator,
 };
 use models::FileOutputFormat;
 use naive_tooltip_content_generator::write_ts_file;
@@ -108,7 +108,7 @@ enum Commands {
         from: Option<String>,
         #[arg(
             long,
-            value_name = "TAG2", 
+            value_name = "TAG2",
             help = "Second tag/version to compare (defaults to second latest)"
         )]
         to: Option<String>,
