@@ -246,10 +246,10 @@ fn show_manual_template_download_instructions(target_dir: &Path) {
 
 pub fn run_cli_parser(command: &str, output_path: Option<&PathBuf>, format: Option<&String>) {
     use crate::models::ParseOutputFormat;
-    
+
     // First try to load existing JSON file, fall back to re-parsing if not found
     let structure: serde_json::Value = {
-        let json_filename = format!("{}.json", command.split('/').last().unwrap_or("cli"));
+        let json_filename = format!("{}.json", command.split('/').next_back().unwrap_or("cli"));
         let json_path = Path::new(&json_filename);
         if json_path.exists() {
             let json_content = fs::read_to_string(json_path).expect("Failed to read JSON file");
@@ -402,30 +402,30 @@ pub fn run_keyword_extractor(
         FileOutputFormat::Csv => {
             let mut csv_content = String::new();
             csv_content.push_str("type,value\n");
-            
+
             // Add base program
             csv_content.push_str(&format!("base_program,{}\n", keywords.base_program));
-            
+
             // Add commands
             for command in &keywords.commands {
                 csv_content.push_str(&format!("command,{}\n", command));
             }
-            
+
             // Add subcommands
             for subcommand in &keywords.subcommands {
                 csv_content.push_str(&format!("subcommand,{}\n", subcommand));
             }
-            
+
             // Add short flags
             for flag in &keywords.short_flags {
                 csv_content.push_str(&format!("short_flag,{}\n", flag));
             }
-            
+
             // Add long flags
             for flag in &keywords.long_flags {
                 csv_content.push_str(&format!("long_flag,{}\n", flag));
             }
-            
+
             out_file.write_csv_output(&csv_content);
         }
     }
@@ -1002,12 +1002,12 @@ pub fn run_cli_replicator(
 fn generate_json_schema(output_path: &PathBuf) {
     // Read the existing JSON schema file from the project
     let schema_content = include_str!("schemas/cobra/cobra_cli_structure.schema.json");
-    
+
     // Create output directory if it doesn't exist
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent).expect("Failed to create output directory");
     }
-    
+
     // Write the schema file
     fs::write(output_path, schema_content).expect("Failed to write JSON schema file");
 }
@@ -1015,12 +1015,12 @@ fn generate_json_schema(output_path: &PathBuf) {
 fn generate_zod_schema(output_path: &PathBuf) {
     // Read the existing Zod schema file from the project
     let zod_content = include_str!("schemas/cobra/cobra_cli_structure.zod.ts");
-    
+
     // Create output directory if it doesn't exist
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent).expect("Failed to create output directory");
     }
-    
+
     // Write the Zod schema file
     fs::write(output_path, zod_content).expect("Failed to write Zod schema file");
 }
@@ -1028,31 +1028,39 @@ fn generate_zod_schema(output_path: &PathBuf) {
 fn generate_zod_directory(structure: &serde_json::Value, output_path: &PathBuf) {
     // Create the main directory
     fs::create_dir_all(output_path).expect("Failed to create output directory");
-    
+
     // Generate the main schema file
     let main_schema_content = include_str!("schemas/cobra/cobra_cli_structure.zod.ts");
     let main_schema_path = output_path.join("schema.ts");
     fs::write(&main_schema_path, main_schema_content).expect("Failed to write main schema file");
-    
+
     // Generate index file with exports
     let mut index_content = String::new();
     index_content.push_str("// Auto-generated command exports\n");
     index_content.push_str("export * from './schema';\n\n");
-    
+
     // Extract program info
-    let program_name = structure.get("name")
+    let program_name = structure
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("cli");
-    
+
     // Process commands recursively
-    if let Some(children) = structure.get("children").and_then(|v| v.as_object()) {
-        if let Some(command_map) = children.get("COMMAND").and_then(|v| v.as_object()) {
-            for (command_name, command_data) in command_map {
-                generate_command_file(command_name, command_data, output_path, &mut index_content, program_name, "");
-            }
+    if let Some(children) = structure.get("children").and_then(|v| v.as_object())
+        && let Some(command_map) = children.get("COMMAND").and_then(|v| v.as_object())
+    {
+        for (command_name, command_data) in command_map {
+            generate_command_file(
+                command_name,
+                command_data,
+                output_path,
+                &mut index_content,
+                program_name,
+                "",
+            );
         }
     }
-    
+
     // Write index file
     let index_path = output_path.join("index.ts");
     fs::write(&index_path, index_content).expect("Failed to write index file");
@@ -1063,7 +1071,7 @@ fn generate_command_file(
     command_data: &serde_json::Value,
     base_path: &PathBuf,
     index_content: &mut String,
-    program_name: &str,
+    _program_name: &str,
     parent_path: &str,
 ) {
     let safe_command_name = sanitize_filename(command_name);
@@ -1074,275 +1082,332 @@ fn generate_command_file(
         fs::create_dir_all(&dir_path).expect("Failed to create subdirectory");
         dir_path.join(format!("{}.ts", safe_command_name))
     };
-    
+
     let mut content = String::new();
-    
+
     // Import schema
     let import_path = if parent_path.is_empty() {
         "./schema"
     } else {
         "../schema"
     };
-    content.push_str(&format!("import {{ CLIStructure, Command, CommandFlag, CommandComponentDataType }} from '{}';\n", import_path));
-    
+    content.push_str(&format!(
+        "import {{ CLIStructure, Command, CommandFlag, CommandComponentDataType }} from '{}';\n",
+        import_path
+    ));
 
-    
     // Collect subcommand imports
     let mut subcommand_imports = Vec::new();
-    if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-        if let Some(subcommands) = children.get("COMMAND").and_then(|v| v.as_object()) {
-            for subcommand_name in subcommands.keys() {
-                let subcommand_interface = format!("{}Command", to_pascal_case(subcommand_name));
-                let import_path = if parent_path.is_empty() {
-                    format!("./{}/{}", safe_command_name, sanitize_filename(subcommand_name))
-                } else {
-                    format!("./{}/{}", safe_command_name, sanitize_filename(subcommand_name))
-                };
-                subcommand_imports.push((subcommand_interface, import_path));
-            }
+    if let Some(children) = command_data.get("children").and_then(|v| v.as_object())
+        && let Some(subcommands) = children.get("COMMAND").and_then(|v| v.as_object())
+    {
+        for subcommand_name in subcommands.keys() {
+            let subcommand_interface = format!("{}Command", to_pascal_case(subcommand_name));
+            let import_path = if parent_path.is_empty() {
+                format!(
+                    "./{}/{}",
+                    safe_command_name,
+                    sanitize_filename(subcommand_name)
+                )
+            } else {
+                format!(
+                    "../{}/{}",
+                    safe_command_name,
+                    sanitize_filename(subcommand_name)
+                )
+            };
+            subcommand_imports.push((subcommand_interface, import_path));
         }
     }
-    
+
     // Add subcommand imports
     for (interface_name, import_path) in &subcommand_imports {
-        content.push_str(&format!("import {{ {} }} from '{}';\n", interface_name, import_path));
+        content.push_str(&format!(
+            "import {{ {} }} from '{}';\n",
+            interface_name, import_path
+        ));
     }
-    content.push_str("\n");
-    
+    content.push('\n');
+
     // Generate command interface
     let interface_name = format!("{}Command", to_pascal_case(&safe_command_name));
     content.push_str(&format!("export interface {} {{\n", interface_name));
     content.push_str(&format!("  name: '{}';\n", command_name));
-    
+
     // Add description if available
     if let Some(description) = command_data.get("description").and_then(|v| v.as_str()) {
-        content.push_str(&format!("  description: '{}';\n", escape_string(description)));
+        content.push_str(&format!(
+            "  description: '{}';\n",
+            escape_string(description)
+        ));
     }
-    
+
     // Extract usage from USAGE array
-    if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-        if let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array()) {
-            if let Some(first_usage) = usage_array.first() {
-                if let Some(usage_string) = first_usage.get("usage_string").and_then(|v| v.as_str()) {
-                    content.push_str(&format!("  usage: '{}';\n", escape_string(usage_string)));
-                }
-            }
-        }
+    if let Some(children) = command_data.get("children").and_then(|v| v.as_object())
+        && let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array())
+        && let Some(first_usage) = usage_array.first()
+        && let Some(usage_string) = first_usage.get("usage_string").and_then(|v| v.as_str())
+    {
+        content.push_str(&format!("  usage: '{}';\n", escape_string(usage_string)));
     }
-    
+
     // Add arguments if available
     if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-        if let Some(args) = children.get("ARGUMENT").and_then(|v| v.as_array()) {
-            if !args.is_empty() {
-                content.push_str("  arguments: {\n");
-                for (i, arg) in args.iter().enumerate() {
-                    if let Some(arg_str) = arg.as_str() {
-                        let arg_name = sanitize_filename(arg_str);
-                        content.push_str(&format!("    '{}': string;  // {}\n", arg_name, arg_str));
-                    } else {
-                        content.push_str(&format!("    'arg{}': string;\n", i));
-                    }
+        if let Some(args) = children.get("ARGUMENT").and_then(|v| v.as_array())
+            && !args.is_empty()
+        {
+            content.push_str("  arguments: {\n");
+            for (i, arg) in args.iter().enumerate() {
+                if let Some(arg_str) = arg.as_str() {
+                    let arg_name = sanitize_filename(arg_str);
+                    content.push_str(&format!("    '{}': string;  // {}\n", arg_name, arg_str));
+                } else {
+                    content.push_str(&format!("    'arg{}': string;\n", i));
                 }
-                content.push_str("  };\n");
             }
+            content.push_str("  };\n");
         }
-        
+
         // Add flags type annotation
-        if let Some(flags) = children.get("FLAG").and_then(|v| v.as_array()) {
-            if !flags.is_empty() {
-                content.push_str("  flags: CommandFlag[];\n");
-            }
+        if let Some(flags) = children.get("FLAG").and_then(|v| v.as_array())
+            && !flags.is_empty()
+        {
+            content.push_str("  flags: CommandFlag[];\n");
         }
-        
+
         // Process subcommands
-        if let Some(subcommands) = children.get("COMMAND").and_then(|v| v.as_object()) {
-            if !subcommands.is_empty() {
-                content.push_str("  subcommands: {\n");
-                for subcommand_name in subcommands.keys() {
-                    content.push_str(&format!("    '{}': {}Command;\n", subcommand_name, to_pascal_case(subcommand_name)));
-                }
-                content.push_str("  };\n");
-                
-                // Generate subcommand files
-                let subdir_path = if parent_path.is_empty() {
-                    safe_command_name.clone()
-                } else {
-                    format!("{}/{}", parent_path, safe_command_name)
-                };
-                
-                for (subcommand_name, subcommand_data) in subcommands {
-                    generate_command_file(subcommand_name, subcommand_data, base_path, index_content, program_name, &subdir_path);
-                }
+        if let Some(subcommands) = children.get("COMMAND").and_then(|v| v.as_object())
+            && !subcommands.is_empty()
+        {
+            content.push_str("  subcommands: {\n");
+            for subcommand_name in subcommands.keys() {
+                content.push_str(&format!(
+                    "    '{}': {}Command;\n",
+                    subcommand_name,
+                    to_pascal_case(subcommand_name)
+                ));
+            }
+            content.push_str("  };\n");
+
+            // Generate subcommand files
+            let subdir_path = if parent_path.is_empty() {
+                safe_command_name.clone()
+            } else {
+                format!("{}/{}", parent_path, safe_command_name)
+            };
+
+            for (subcommand_name, subcommand_data) in subcommands {
+                generate_command_file(
+                    subcommand_name,
+                    subcommand_data,
+                    base_path,
+                    index_content,
+                    _program_name,
+                    &subdir_path,
+                );
             }
         }
     }
-    
+
     content.push_str("}\n\n");
-    
+
     // Add flag data constant
-    if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-        if let Some(flags) = children.get("FLAG").and_then(|v| v.as_array()) {
-            if !flags.is_empty() {
-                // Get usage string for docopt analysis
-                let usage_string = if let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array()) {
-                    usage_array.first()
-                        .and_then(|u| u.get("usage_string"))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
+    if let Some(children) = command_data.get("children").and_then(|v| v.as_object())
+        && let Some(flags) = children.get("FLAG").and_then(|v| v.as_array())
+        && !flags.is_empty()
+    {
+        // Get usage string for docopt analysis
+        let usage_string =
+            if let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array()) {
+                usage_array
+                    .first()
+                    .and_then(|u| u.get("usage_string"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+            } else {
+                ""
+            };
+        // Collect and sort flags alphabetically by long flag name
+        let mut flag_objects = Vec::new();
+        for flag in flags {
+            if let Some(flag_obj) = flag.as_object()
+                && let Some(long_flag) = flag_obj.get("long").and_then(|v| v.as_str())
+            {
+                let short_flag = flag_obj.get("short").and_then(|v| v.as_str()).unwrap_or("");
+                let description = flag_obj
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let data_type = flag_obj
+                    .get("data_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                // Extract and clean description by removing data type prefix
+                let (clean_description, extracted_data_type) =
+                    extract_data_type_from_description(description);
+
+                // Determine data type based on data_type field, extracted type, or patterns
+                let data_type_enum = if !data_type.is_empty() {
+                    match data_type {
+                        "stringArray" => {
+                            // Check if it's actually key-value mapping based on description
+                            if is_key_value_mapping(&clean_description) {
+                                "CommandComponentDataType.KEY_VALUE_MAPPING"
+                            } else {
+                                "[CommandComponentDataType.STRING]"
+                            }
+                        }
+                        "stringToString" => "CommandComponentDataType.KEY_VALUE_MAPPING",
+                        "uint" | "int" => "CommandComponentDataType.INTEGER",
+                        "bool" => "CommandComponentDataType.BOOLEAN",
+                        "string" => "CommandComponentDataType.STRING",
+                        "float" => "CommandComponentDataType.FLOAT",
+                        _ => "CommandComponentDataType.STRING",
+                    }
+                } else if !extracted_data_type.is_empty() {
+                    match extracted_data_type.as_str() {
+                        "stringArray" => {
+                            // Check if it's actually key-value mapping based on description
+                            if is_key_value_mapping(&clean_description) {
+                                "CommandComponentDataType.KEY_VALUE_MAPPING"
+                            } else {
+                                "[CommandComponentDataType.STRING]"
+                            }
+                        }
+                        "stringToString" => "CommandComponentDataType.KEY_VALUE_MAPPING",
+                        "uint" | "int" => "CommandComponentDataType.INTEGER",
+                        "string" => "CommandComponentDataType.STRING",
+                        "bool" => "CommandComponentDataType.BOOLEAN",
+                        "float" => "CommandComponentDataType.FLOAT",
+                        _ => "CommandComponentDataType.STRING",
+                    }
+                } else if long_flag == "--help"
+                    || clean_description.starts_with("help for")
+                    || long_flag.starts_with("--no-")
+                {
+                    "CommandComponentDataType.BOOLEAN"
                 } else {
-                    ""
+                    // Default fallback
+                    "CommandComponentDataType.STRING"
                 };
-                // Collect and sort flags alphabetically by long flag name
-                let mut flag_objects = Vec::new();
-                for flag in flags {
-                    if let Some(flag_obj) = flag.as_object() {
-                        if let Some(long_flag) = flag_obj.get("long").and_then(|v| v.as_str()) {
-                            let short_flag = flag_obj.get("short")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("");
-                            let description = flag_obj.get("description")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("");
-                            let data_type = flag_obj.get("data_type")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("");
-                            
-                            // Extract and clean description by removing data type prefix
-                            let (clean_description, extracted_data_type) = extract_data_type_from_description(description);
-                            
-                            // Determine data type based on data_type field, extracted type, or patterns
-                            let data_type_enum = if !data_type.is_empty() {
-                                match data_type {
-                                    "stringArray" => {
-                                        // Check if it's actually key-value mapping based on description
-                                        if is_key_value_mapping(&clean_description) {
-                                            "CommandComponentDataType.KEY_VALUE_MAPPING"
-                                        } else {
-                                            "[CommandComponentDataType.STRING]"
-                                        }
-                                    },
-                                    "stringToString" => "CommandComponentDataType.KEY_VALUE_MAPPING",
-                                    "uint" | "int" => "CommandComponentDataType.INTEGER",
-                                    "bool" => "CommandComponentDataType.BOOLEAN",
-                                    "string" => "CommandComponentDataType.STRING",
-                                    "float" => "CommandComponentDataType.FLOAT",
-                                    _ => "CommandComponentDataType.STRING"
-                                }
-                            } else if !extracted_data_type.is_empty() {
-                                match extracted_data_type.as_str() {
-                                    "stringArray" => {
-                                        // Check if it's actually key-value mapping based on description
-                                        if is_key_value_mapping(&clean_description) {
-                                            "CommandComponentDataType.KEY_VALUE_MAPPING"
-                                        } else {
-                                            "[CommandComponentDataType.STRING]"
-                                        }
-                                    },
-                                    "stringToString" => "CommandComponentDataType.KEY_VALUE_MAPPING",
-                                    "uint" | "int" => "CommandComponentDataType.INTEGER",
-                                    "string" => "CommandComponentDataType.STRING",
-                                    "bool" => "CommandComponentDataType.BOOLEAN",
-                                    "float" => "CommandComponentDataType.FLOAT",
-                                    _ => "CommandComponentDataType.STRING"
-                                }
-                            } else if long_flag == "--help" || clean_description.starts_with("help for") || long_flag.starts_with("--no-") {
-                                "CommandComponentDataType.BOOLEAN"
-                            } else {
-                                // Default fallback
-                                "CommandComponentDataType.STRING"
-                            };
-                            
-                            // Extract default value from description
-                            let default_value = extract_default_value(&clean_description);
-                            
-                            // Extract examples (if any) from description  
-                            let examples = extract_examples(&clean_description);
-                            
-                            // Determine if flag is required based on description patterns and usage string
-                            let is_required = if description.contains("(default") || 
-                                                description.to_lowercase().contains("default is") ||
-                                                description.to_lowercase().contains("defaults to") ||
-                                                long_flag == "--help" ||
-                                                description.starts_with("help for") {
-                                // Flags with default values or help flags are optional
-                                false
-                            } else if description.to_lowercase().contains("required") ||
-                                     description.to_lowercase().contains("mandatory") ||
-                                     description.to_lowercase().contains("must be provided") ||
-                                     description.to_lowercase().contains("must specify") ||
-                                     description.ends_with("(required)") ||
-                                     description.ends_with("(mandatory)") {
-                                // Explicitly marked as required
-                                true
-                            } else {
-                                // Check docopt patterns in usage string
-                                check_flag_in_usage_string(usage_string, long_flag, short_flag)
-                            };
-                            
-                            flag_objects.push((long_flag.to_string(), short_flag.to_string(), data_type_enum.to_string(), clean_description, default_value, examples, is_required));
-                        }
-                    }
-                }
-                
-                // Sort flags alphabetically by long flag name (without --)
-                flag_objects.sort_by(|a, b| {
-                    let a_name = a.0.trim_start_matches('-');
-                    let b_name = b.0.trim_start_matches('-');
-                    a_name.cmp(b_name)
-                });
-                
-                let const_name = format!("{}_FLAGS", safe_command_name.to_uppercase());
-                content.push_str(&format!("export const {}: CommandFlag[] = [\n", const_name));
-                for (long_flag, short_flag, data_type_enum, clean_description, default_value, examples, is_required) in &flag_objects {
-                    content.push_str("  {\n");
-                    
-                    // Long name
-                    content.push_str(&format!("    longName: '{}',\n", long_flag));
-                    
-                    // Short name (optional)
-                    if !short_flag.is_empty() {
-                        content.push_str(&format!("    shortName: '{}',\n", short_flag));
-                    }
-                    
-                    // Value data type
-                    content.push_str(&format!("    valueDataType: {},\n", data_type_enum));
-                    
-                    // Default value (optional)
-                    if let Some(default_val) = default_value {
-                        content.push_str(&format!("    defaultValue: '{}',\n", escape_string(default_val)));
-                    }
-                    
-                    // Description
-                    content.push_str(&format!("    description: '{}',\n", escape_string(&clean_description)));
-                    
-                    // Required flag
-                    content.push_str(&format!("    required: {}\n", is_required));
-                    
-                    // Examples (optional)
-                    if !examples.is_empty() {
-                        content.push_str(",\n    examples: [\n");
-                        for example in examples {
-                            content.push_str(&format!("      '{}',\n", escape_string(example)));
-                        }
-                        content.push_str("    ]\n");
-                    }
-                    
-                    content.push_str("  },\n");
-                }
-                content.push_str("];\n\n");
+
+                // Extract default value from description
+                let default_value = extract_default_value(&clean_description);
+
+                // Extract examples (if any) from description
+                let examples = extract_examples(&clean_description);
+
+                // Determine if flag is required based on description patterns and usage string
+                let is_required = if description.contains("(default")
+                    || description.to_lowercase().contains("default is")
+                    || description.to_lowercase().contains("defaults to")
+                    || long_flag == "--help"
+                    || description.starts_with("help for")
+                {
+                    // Flags with default values or help flags are optional
+                    false
+                } else if description.to_lowercase().contains("required")
+                    || description.to_lowercase().contains("mandatory")
+                    || description.to_lowercase().contains("must be provided")
+                    || description.to_lowercase().contains("must specify")
+                    || description.ends_with("(required)")
+                    || description.ends_with("(mandatory)")
+                {
+                    // Explicitly marked as required
+                    true
+                } else {
+                    // Check docopt patterns in usage string
+                    check_flag_in_usage_string(usage_string, long_flag, short_flag)
+                };
+
+                flag_objects.push((
+                    long_flag.to_string(),
+                    short_flag.to_string(),
+                    data_type_enum.to_string(),
+                    clean_description,
+                    default_value,
+                    examples,
+                    is_required,
+                ));
             }
         }
+
+        // Sort flags alphabetically by long flag name (without --)
+        flag_objects.sort_by(|a, b| {
+            let a_name = a.0.trim_start_matches('-');
+            let b_name = b.0.trim_start_matches('-');
+            a_name.cmp(b_name)
+        });
+
+        let const_name = format!("{}_FLAGS", safe_command_name.to_uppercase());
+        content.push_str(&format!("export const {}: CommandFlag[] = [\n", const_name));
+        for (
+            long_flag,
+            short_flag,
+            data_type_enum,
+            clean_description,
+            default_value,
+            examples,
+            is_required,
+        ) in &flag_objects
+        {
+            content.push_str("  {\n");
+
+            // Long name
+            content.push_str(&format!("    longName: '{}',\n", long_flag));
+
+            // Short name (optional)
+            if !short_flag.is_empty() {
+                content.push_str(&format!("    shortName: '{}',\n", short_flag));
+            }
+
+            // Value data type
+            content.push_str(&format!("    valueDataType: {},\n", data_type_enum));
+
+            // Default value (optional)
+            if let Some(default_val) = default_value {
+                content.push_str(&format!(
+                    "    defaultValue: '{}',\n",
+                    escape_string(default_val)
+                ));
+            }
+
+            // Description
+            content.push_str(&format!(
+                "    description: '{}',\n",
+                escape_string(clean_description)
+            ));
+
+            // Required flag
+            content.push_str(&format!("    required: {}\n", is_required));
+
+            // Examples (optional)
+            if !examples.is_empty() {
+                content.push_str(",\n    examples: [\n");
+                for example in examples {
+                    content.push_str(&format!("      '{}',\n", escape_string(example)));
+                }
+                content.push_str("    ]\n");
+            }
+
+            content.push_str("  },\n");
+        }
+        content.push_str("];\n\n");
     }
-    
+
     // Add validation function
-    content.push_str(&format!("export function validate{}(data: any): {} {{\n", interface_name, interface_name));
+    content.push_str(&format!(
+        "export function validate{}(data: any): {} {{\n",
+        interface_name, interface_name
+    ));
     content.push_str("  // Add your validation logic here\n");
     content.push_str("  return data;\n");
     content.push_str("}\n");
-    
+
     // Write the file
     fs::write(&file_path, content).expect("Failed to write command file");
-    
+
     // Add export to index
     let export_path = if parent_path.is_empty() {
         format!("./{}", safe_command_name)
@@ -1354,7 +1419,13 @@ fn generate_command_file(
 
 fn sanitize_filename(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -1364,46 +1435,63 @@ fn to_pascal_case(s: &str) -> String {
             let mut chars = word.chars();
             match chars.next() {
                 None => String::new(),
-                Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+                Some(first) => {
+                    first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
+                }
             }
         })
         .collect()
 }
 
 fn escape_string(s: &str) -> String {
-    s.replace('\'', "\\'").replace('\n', "\\n").replace('\r', "\\r")
+    s.replace('\'', "\\'")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
 }
 
 fn extract_data_type_from_description(description: &str) -> (String, String) {
     // Extract data type prefix from description like "uint Number of servers..."
-    let data_type_prefixes = ["stringArray", "stringToString", "uint", "int", "string", "bool", "float"];
-    
+    let data_type_prefixes = [
+        "stringArray",
+        "stringToString",
+        "uint",
+        "int",
+        "string",
+        "bool",
+        "float",
+    ];
+
     for prefix in &data_type_prefixes {
         if description.starts_with(&format!("{} ", prefix)) {
-            let clean_desc = description.strip_prefix(&format!("{} ", prefix)).unwrap_or(description);
+            let clean_desc = description
+                .strip_prefix(&format!("{} ", prefix))
+                .unwrap_or(description);
             return (clean_desc.to_string(), prefix.to_string());
         }
     }
-    
+
     (description.to_string(), String::new())
 }
 
 fn extract_default_value(description: &str) -> Option<String> {
     // Extract default value from patterns like "(default 1)" or "default is nvidia"
-    if let Some(start) = description.find("(default ") {
-        if let Some(end) = description[start..].find(')') {
-            let default_part = &description[start + 9..start + end]; // Skip "(default "
-            return Some(default_part.to_string());
-        }
+    if let Some(start) = description.find("(default ")
+        && let Some(end) = description[start..].find(')')
+    {
+        let default_part = &description[start + 9..start + end]; // Skip "(default "
+        return Some(default_part.to_string());
     }
-    
+
     if let Some(start) = description.find("default is ") {
-        let default_part = description[start + 11..].split_whitespace().next().unwrap_or("");
+        let default_part = description[start + 11..]
+            .split_whitespace()
+            .next()
+            .unwrap_or("");
         if !default_part.is_empty() {
             return Some(default_part.to_string());
         }
     }
-    
+
     None
 }
 
@@ -1415,52 +1503,62 @@ fn extract_examples(_description: &str) -> Vec<String> {
 
 fn is_key_value_mapping(description: &str) -> bool {
     // Check if description indicates key-value mapping patterns
-    description.contains("key=value") ||
-    description.contains("Key/Value") ||
-    description.contains("key/value") ||
-    description.contains("=") && (description.contains("pair") || description.contains("mapping")) ||
-    description.contains("key:value")
+    description.contains("key=value")
+        || description.contains("Key/Value")
+        || description.contains("key/value")
+        || description.contains("=")
+            && (description.contains("pair") || description.contains("mapping"))
+        || description.contains("key:value")
 }
 
 fn check_flag_in_usage_string(usage_string: &str, long_flag: &str, short_flag: &str) -> bool {
     // Check docopt patterns in usage string
     // In docopt:
     // <argument> = required
-    // [optional] = optional  
+    // [optional] = optional
     // (required) = required (grouped)
     // --flag = appears directly (context-dependent)
     // [--flag] = explicitly optional
     // <--flag> = explicitly required (rare but possible)
-    
+
     // Look for the flag in various docopt patterns
     let long_without_dashes = long_flag.trim_start_matches('-');
-    
+
     // Check if flag appears in required context: <--flag> or (--flag)
-    if usage_string.contains(&format!("<{}>", long_flag)) ||
-       usage_string.contains(&format!("({})", long_flag)) ||
-       (!short_flag.is_empty() && usage_string.contains(&format!("<{}>", short_flag))) ||
-       (!short_flag.is_empty() && usage_string.contains(&format!("({})", short_flag))) {
+    if usage_string.contains(&format!("<{}>", long_flag))
+        || usage_string.contains(&format!("({})", long_flag))
+        || (!short_flag.is_empty() && usage_string.contains(&format!("<{}>", short_flag)))
+        || (!short_flag.is_empty() && usage_string.contains(&format!("({})", short_flag)))
+    {
         return true;
     }
-    
-    // Check if flag appears in optional context: [--flag] 
-    if usage_string.contains(&format!("[{}]", long_flag)) ||
-       usage_string.contains(&format!("[{}]", short_flag)) ||
-       usage_string.contains("[flags]") {
+
+    // Check if flag appears in optional context: [--flag]
+    if usage_string.contains(&format!("[{}]", long_flag))
+        || usage_string.contains(&format!("[{}]", short_flag))
+        || usage_string.contains("[flags]")
+    {
         return false;
     }
-    
+
     // Check for uppercase placeholder patterns that indicate required flags
     // e.g., "flexai checkpoint export CHECKPOINT_ID --storage-provider PROVIDER_NAME --destination-path PATH"
     // Look for UPPERCASE words that correspond to flag names
-    if usage_string.contains(&format!("{} {}", long_flag, long_without_dashes.to_uppercase())) ||
-       usage_string.contains(&format!("{} {}", long_flag, &long_without_dashes.replace('-', "_").to_uppercase())) ||
-       usage_string.contains(&format!("{} PATH", long_flag)) ||
-       usage_string.contains(&format!("{} NAME", long_flag)) ||
-       usage_string.contains(&format!("{} ID", long_flag)) {
+    if usage_string.contains(&format!(
+        "{} {}",
+        long_flag,
+        long_without_dashes.to_uppercase()
+    )) || usage_string.contains(&format!(
+        "{} {}",
+        long_flag,
+        &long_without_dashes.replace('-', "_").to_uppercase()
+    )) || usage_string.contains(&format!("{} PATH", long_flag))
+        || usage_string.contains(&format!("{} NAME", long_flag))
+        || usage_string.contains(&format!("{} ID", long_flag))
+    {
         return true;
     }
-    
+
     // Default to optional for ambiguous cases
     false
 }

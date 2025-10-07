@@ -69,7 +69,7 @@ impl ParseOutputFormat {
             _ => None,
         }
     }
-    
+
     pub fn get_file_extension(&self) -> &'static str {
         match self {
             ParseOutputFormat::Json => "json",
@@ -114,7 +114,7 @@ impl OutputFile {
     pub fn write_plain_output(&self, content: &str) {
         std::fs::write(&self.path, content).expect("Failed to write output file");
     }
-    
+
     pub fn write_csv_output(&self, content: &str) {
         std::fs::write(&self.path, content).expect("Failed to write CSV output file");
     }

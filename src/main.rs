@@ -32,7 +32,12 @@ enum Commands {
         name: String,
         #[arg(short, long, value_name = "PATH")]
         output_file: Option<PathBuf>,
-        #[arg(short, long, value_name = "FORMAT", help = "Output format: json (default), zod, json-schema, or zod-dir")]
+        #[arg(
+            short,
+            long,
+            value_name = "FORMAT",
+            help = "Output format: json (default), zod, json-schema, or zod-dir"
+        )]
         format: Option<String>,
     },
     /// Extracts unique keywords (commands, subcommands, and flags) from a parsed JSON file (outputs as CSV)
@@ -89,7 +94,11 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Some(Commands::Parse { name, output_file, format }) => {
+        Some(Commands::Parse {
+            name,
+            output_file,
+            format,
+        }) => {
             run_cli_parser(name, output_file.as_ref(), format.as_ref());
         }
         Some(Commands::GetTemplate { force }) => {
@@ -121,11 +130,7 @@ fn main() {
                     )),
             };
 
-            run_keyword_extractor(
-                input_json,
-                output_path,
-                FileOutputFormat::Csv,
-            );
+            run_keyword_extractor(input_json, output_path, FileOutputFormat::Csv);
         }
         Some(Commands::Summary {
             input_json,
