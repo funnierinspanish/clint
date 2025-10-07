@@ -1542,7 +1542,7 @@ fn check_flag_in_usage_string(usage_string: &str, long_flag: &str, short_flag: &
     }
 
     // Check for uppercase placeholder patterns that indicate required flags
-    // e.g., "flexai checkpoint export CHECKPOINT_ID --storage-provider PROVIDER_NAME --destination-path PATH"
+    // e.g., "my_cli checkpoint export STUFF_NAME --storage-provider PROVIDER_NAME --destination-path PATH"
     // Look for UPPERCASE words that correspond to flag names
     if usage_string.contains(&format!(
         "{} {}",
