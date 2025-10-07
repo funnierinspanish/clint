@@ -1,5 +1,6 @@
 mod cli_navigator_toolkit;
 mod cli_parser;
+mod comparison;
 mod keyword_extractor;
 mod models;
 mod naive_tooltip_content_generator;
@@ -9,7 +10,7 @@ mod usage_parser;
 
 use cli_navigator_toolkit::{
     run_cli_parser, run_cli_replicator, run_get_template_web_files, run_interactive_serve,
-    run_keyword_extractor, run_summary_generator,
+    run_keyword_extractor, run_summary_generator, run_cli_compare,
 };
 use models::FileOutputFormat;
 use naive_tooltip_content_generator::write_ts_file;
@@ -39,6 +40,13 @@ enum Commands {
             help = "Output format: json (default), zod, json-schema, or zod-dir"
         )]
         format: Option<String>,
+        #[arg(
+            short,
+            long,
+            value_name = "TAG",
+            help = "Custom tag for organizing different versions/states of the CLI"
+        )]
+        tag: Option<String>,
     },
     /// Extracts unique keywords (commands, subcommands, and flags) from a parsed JSON file (outputs as CSV)
     UniqueKeywords {
@@ -88,6 +96,30 @@ enum Commands {
         #[arg(short, long, value_name = "OUTPUT_PATH")]
         output_path: Option<PathBuf>,
     },
+    /// Compares two parsed CLI structures and displays differences
+    Compare {
+        #[arg(value_name = "PROGRAM_NAME")]
+        name: String,
+        #[arg(
+            long,
+            value_name = "TAG1",
+            help = "First tag/version to compare (defaults to latest)"
+        )]
+        from: Option<String>,
+        #[arg(
+            long,
+            value_name = "TAG2", 
+            help = "Second tag/version to compare (defaults to second latest)"
+        )]
+        to: Option<String>,
+        #[arg(
+            short,
+            long,
+            value_name = "FORMAT",
+            help = "Output format to compare: json (default), zod-dir"
+        )]
+        format: Option<String>,
+    },
 }
 
 fn main() {
@@ -98,8 +130,9 @@ fn main() {
             name,
             output_file,
             format,
+            tag,
         }) => {
-            run_cli_parser(name, output_file.as_ref(), format.as_ref());
+            run_cli_parser(name, output_file.as_ref(), format.as_ref(), tag.as_ref());
         }
         Some(Commands::GetTemplate { force }) => {
             run_get_template_web_files(*force);
@@ -247,6 +280,14 @@ fn main() {
                     )),
             };
             write_ts_file(input_json, out_path).expect("Failed to write TypeScript file");
+        }
+        Some(Commands::Compare {
+            name,
+            from,
+            to,
+            format,
+        }) => {
+            run_cli_compare(name, from.as_ref(), to.as_ref(), format.as_ref());
         }
         None => {
             let mut cmd = Cli::command();

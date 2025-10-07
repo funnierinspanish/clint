@@ -12,32 +12,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use warp::Filter;
 
 use crate::cli_parser;
+use crate::comparison;
 use crate::keyword_extractor;
 use crate::models::OutputFile;
 use crate::replicator;
 use crate::summary_generator::generate_summary;
 
-fn get_config_dir_path(program_name: &str, program_version: &str) -> PathBuf {
-    let home_dir = env::var("HOME")
-        .or_else(|_| env::var("USERPROFILE"))
-        .expect("Could not find home directory");
 
-    let config_dir = PathBuf::from(home_dir)
-        .join(".config")
-        .join("clint")
-        .join("parsed")
-        .join(program_name);
-
-    fs::create_dir_all(&config_dir).expect("Failed to create config directory");
-
-    let version_suffix = if program_version.is_empty() || program_version == "Unknown" {
-        "unknown".to_string()
-    } else {
-        program_version.replace(['/', '\\', ':', '<', '>', '"', '|', '?', '*', ' '], "_")
-    };
-
-    config_dir.join(format!("{}-{}.json", program_name, version_suffix))
-}
 
 pub fn run_get_template_web_files(force: bool) {
     let home_dir = env::var("HOME")
@@ -244,7 +225,7 @@ fn show_manual_template_download_instructions(target_dir: &Path) {
     println!();
 }
 
-pub fn run_cli_parser(command: &str, output_path: Option<&PathBuf>, format: Option<&String>) {
+pub fn run_cli_parser(command: &str, output_path: Option<&PathBuf>, format: Option<&String>, tag: Option<&String>) {
     use crate::models::ParseOutputFormat;
 
     // First try to load existing JSON file, fall back to re-parsing if not found
@@ -285,9 +266,32 @@ pub fn run_cli_parser(command: &str, output_path: Option<&PathBuf>, format: Opti
             path.clone()
         }
         None => {
-            let config_dir = get_config_dir_path(program_name, program_version);
-            let filename = format!("{}.{}", program_name, output_format.get_file_extension());
-            config_dir.parent().unwrap().join(filename)
+            // Use new default structure: ./out/<program_name>/<version_or_tag>/
+            let version_or_tag = tag.map(|t| t.clone()).unwrap_or_else(|| {
+                if program_version.is_empty() || program_version == "Unknown" {
+                    "latest".to_string()
+                } else {
+                    program_version.to_string()
+                }
+            });
+            
+            let base_dir = PathBuf::from("./out")
+                .join(program_name)
+                .join(version_or_tag);
+            
+            // Create directory if it doesn't exist
+            if let Err(e) = fs::create_dir_all(&base_dir) {
+                if e.kind() != std::io::ErrorKind::AlreadyExists {
+                    panic!("Failed to create output directory: {}", e);
+                }
+            }
+            
+            let filename = match output_format {
+                ParseOutputFormat::ZodDirectory => program_name.to_string(),
+                _ => format!("parsed.{}", output_format.get_file_extension()),
+            };
+            
+            base_dir.join(filename)
         }
     };
 
@@ -1340,7 +1344,7 @@ fn generate_command_file(
             a_name.cmp(b_name)
         });
 
-        let const_name = format!("{}_FLAGS", safe_command_name.to_uppercase());
+        let const_name = format!("{}_FLAGS", sanitize_js_variable_name(&safe_command_name).to_uppercase());
         content.push_str(&format!("export const {}: CommandFlag[] = [\n", const_name));
         for (
             long_flag,
@@ -1421,6 +1425,18 @@ fn sanitize_filename(name: &str) -> String {
     name.chars()
         .map(|c| {
             if c.is_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+fn sanitize_js_variable_name(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
                 c
             } else {
                 '_'
@@ -1562,3 +1578,176 @@ fn check_flag_in_usage_string(usage_string: &str, long_flag: &str, short_flag: &
     // Default to optional for ambiguous cases
     false
 }
+
+/// Compare two parsed CLI structures and display differences
+pub fn run_cli_compare(program_name: &str, from_tag: Option<&String>, to_tag: Option<&String>, format: Option<&String>) {
+    use crate::models::ParseOutputFormat;
+
+    
+    // Determine format for comparison
+    let compare_format = match format {
+        Some(fmt) => ParseOutputFormat::from_str(fmt).unwrap_or_else(|| {
+            println!("Warning: Unknown format '{}', defaulting to JSON", fmt);
+            ParseOutputFormat::Json
+        }),
+        None => ParseOutputFormat::Json,
+    };
+
+    // Get available versions/tags for the program
+    let base_dir = PathBuf::from("./out").join(program_name);
+    
+    if !base_dir.exists() {
+        println!("Error: No parsed data found for program '{}'", program_name);
+        println!("Run 'clint parse {}' first to generate parsed data.", program_name);
+        return;
+    }
+
+    // List all available versions/tags
+    let mut available_versions = Vec::new();
+    if let Ok(entries) = fs::read_dir(&base_dir) {
+        for entry in entries.flatten() {
+            if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+                if let Some(name) = entry.file_name().to_str() {
+                    available_versions.push(name.to_string());
+                }
+            }
+        }
+    }
+
+    if available_versions.is_empty() {
+        println!("Error: No versions found for program '{}'", program_name);
+        return;
+    }
+
+    // Sort versions (latest first)
+    available_versions.sort();
+    available_versions.reverse();
+
+    // Determine which versions to compare
+    let from_version = from_tag
+        .map(|s| s.clone())
+        .or_else(|| available_versions.get(0).cloned())
+        .unwrap_or_else(|| {
+            println!("Error: No versions available for comparison");
+            std::process::exit(1);
+        });
+
+    let to_version = to_tag
+        .map(|s| s.clone())
+        .or_else(|| available_versions.get(1).cloned())
+        .unwrap_or_else(|| {
+            println!("Error: Need at least two versions for comparison");
+            println!("Available versions: {:?}", available_versions);
+            std::process::exit(1);
+        });
+
+    println!("Comparing {} versions: {} -> {}", program_name, from_version, to_version);
+    println!();
+
+    // Build file paths
+    let from_path = match compare_format {
+        ParseOutputFormat::ZodDirectory => base_dir.join(&from_version).join(program_name),
+        _ => base_dir.join(&from_version).join(format!("parsed.{}", compare_format.get_file_extension())),
+    };
+
+    let to_path = match compare_format {
+        ParseOutputFormat::ZodDirectory => base_dir.join(&to_version).join(program_name),
+        _ => base_dir.join(&to_version).join(format!("parsed.{}", compare_format.get_file_extension())),
+    };
+
+    // Check if files exist
+    if !from_path.exists() {
+        println!("Error: Source version '{}' not found at: {}", from_version, from_path.display());
+        return;
+    }
+
+    if !to_path.exists() {
+        println!("Error: Target version '{}' not found at: {}", to_version, to_path.display());
+        return;
+    }
+
+    match compare_format {
+        ParseOutputFormat::ZodDirectory => {
+            compare_zod_directories(&from_path, &to_path, &from_version, &to_version);
+        }
+        _ => {
+            compare_json_files(&from_path, &to_path, &from_version, &to_version);
+        }
+    }
+}
+
+/// Compare two JSON files and display differences
+fn compare_json_files(from_path: &PathBuf, to_path: &PathBuf, from_version: &str, to_version: &str) {
+    match comparison::compare_json_structures(from_path, to_path) {
+        Ok(changes) => {
+            if changes.is_empty() {
+                println!("No differences found between {} and {}", from_version, to_version);
+            } else {
+                println!("Changes found between {} and {}:", from_version, to_version);
+                println!();
+                
+                for change in &changes {
+                    println!("{}", change.format());
+                }
+                
+                println!();
+                println!("Summary: {} changes detected", changes.len());
+                
+                println!();
+                println!("Tip: Use a JSON diff tool for raw comparison:");
+                println!("  diff <(jq . {}) <(jq . {})", from_path.display(), to_path.display());
+            }
+        }
+        Err(e) => {
+            println!("Error comparing JSON structures: {}", e);
+            println!("Falling back to simple file comparison...");
+            println!();
+            
+            // Fallback to simple file comparison
+            let from_content = fs::read_to_string(from_path).unwrap_or_default();
+            let to_content = fs::read_to_string(to_path).unwrap_or_default();
+            
+            if from_content == to_content {
+                println!("No differences found between {} and {}", from_version, to_version);
+            } else {
+                println!("Files differ between {} and {}", from_version, to_version);
+                println!();
+                println!("Tip: Use diff or a JSON tool for detailed comparison:");
+                println!("  diff {} {}", from_path.display(), to_path.display());
+            }
+        }
+    }
+}
+
+/// Compare two Zod directories and display differences
+fn compare_zod_directories(from_path: &PathBuf, to_path: &PathBuf, from_version: &str, to_version: &str) {
+    println!("Analyzing CLI structure changes...");
+    println!();
+
+    match comparison::compare_zod_directories(from_path, to_path) {
+        Ok(changes) => {
+            if changes.is_empty() {
+                println!("No differences found between {} and {}", from_version, to_version);
+            } else {
+                println!("Changes found between {} and {}:", from_version, to_version);
+                println!();
+                
+                for change in &changes {
+                    println!("{}", change.format());
+                }
+                
+                println!();
+                println!("Summary: {} changes detected", changes.len());
+                
+                println!();
+                println!("Tip: Use git diff for file-level comparison:");
+                println!("  diff -r {} {}", from_path.display(), to_path.display());
+            }
+        }
+        Err(e) => {
+            println!("Error comparing Zod directories: {}", e);
+        }
+    }
+}
+
+
