@@ -56,7 +56,7 @@ pub enum ParseOutputFormat {
     Json,
     JsonSchema,
     ZodSchema,
-    ZodDirectory,
+    TypeScriptDirectory,
 }
 
 impl ParseOutputFormat {
@@ -65,7 +65,9 @@ impl ParseOutputFormat {
             "json" => Some(ParseOutputFormat::Json),
             "json-schema" => Some(ParseOutputFormat::JsonSchema),
             "zod" => Some(ParseOutputFormat::ZodSchema),
-            "zod-dir" | "zod-directory" => Some(ParseOutputFormat::ZodDirectory),
+            "ts-dir" | "typescript-dir" | "typescript-directory" => Some(ParseOutputFormat::TypeScriptDirectory),
+            // Keep backwards compatibility
+            "zod-dir" | "zod-directory" => Some(ParseOutputFormat::TypeScriptDirectory),
             _ => None,
         }
     }
@@ -75,7 +77,7 @@ impl ParseOutputFormat {
             ParseOutputFormat::Json => "json",
             ParseOutputFormat::JsonSchema => "schema.json",
             ParseOutputFormat::ZodSchema => "zod.ts",
-            ParseOutputFormat::ZodDirectory => "", // Directory doesn't have an extension
+            ParseOutputFormat::TypeScriptDirectory => "", // Directory doesn't have an extension
         }
     }
 }

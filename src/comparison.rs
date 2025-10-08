@@ -279,7 +279,7 @@ fn format_flag_display(flag: &Value) -> String {
     }
 }
 
-pub fn compare_zod_directories(
+pub fn compare_typescript_directories(
     from_dir: &Path,
     to_dir: &Path,
 ) -> Result<Vec<ChangeType>, Box<dyn std::error::Error>> {

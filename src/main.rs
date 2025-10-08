@@ -27,17 +27,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Parses a CLI program written with the Cobra library and generates a JSON file with its structure
+    /// Parses a CLI program written with the Cobra library and generates output in the specified format
     Parse {
         #[arg(value_name = "PROGRAM_NAME")]
         name: String,
-        #[arg(short, long, value_name = "PATH")]
+        #[arg(short = 'o', long = "output", value_name = "PATH")]
         output_file: Option<PathBuf>,
         #[arg(
             short,
             long,
             value_name = "FORMAT",
-            help = "Output format: json (default), zod, json-schema, or zod-dir"
+            help = "Output format: json (default), zod, json-schema, or ts-dir"
         )]
         format: Option<String>,
         #[arg(
@@ -116,7 +116,7 @@ enum Commands {
             short,
             long,
             value_name = "FORMAT",
-            help = "Output format to compare: json (default), zod-dir"
+            help = "Output format to compare: json (default), ts-dir"
         )]
         format: Option<String>,
     },

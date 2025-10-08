@@ -18,7 +18,17 @@ export interface CommandFlag {
   defaultValue?: string;
   description: string;
   required: boolean;
-  examples?: string[];
+  examples: string[];
+  namingConvention: string;
+}
+
+// Command Argument interface for generated command files
+export interface CommandArgument {
+  description: string;
+  required: boolean;
+  valueDataType: CommandComponentDataType;
+  examples: string[];
+  namingConvention: string;
 }
 
 // Component type enum for usage parsing

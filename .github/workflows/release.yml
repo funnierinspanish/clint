@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+# Add explicit permissions for the workflow
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -83,6 +87,8 @@ jobs:
     name: Create Release
     needs: [get-version, build-binaries]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -94,12 +100,12 @@ jobs:
 
     - name: Create release with binaries
       uses: softprops/action-gh-release@v2
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ needs.get-version.outputs.version }}
         name: Release ${{ needs.get-version.outputs.version }}
         draft: false
         prerelease: false
         files: release-artifacts/*/*
+        make_latest: true
+        generate_release_notes: true
 

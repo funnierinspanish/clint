@@ -265,8 +265,15 @@ pub fn run_cli_parser(
     // Determine output path with appropriate extension
     let out_path = match output_path {
         Some(path) => {
-            println!("Using custom output path: {:?}", path);
-            path.clone()
+            match tag {
+              Some(t) => {
+                path.join(program_name).join(t).join(format!("parsed.{}", output_format.get_file_extension()))
+            },
+            None => {
+                println!("Using custom output path: {:?}", path);
+                path.clone()
+            }
+          }
         }
         None => {
             // Use new default structure: ./out/<program_name>/<version_or_tag>/
@@ -278,9 +285,7 @@ pub fn run_cli_parser(
                 }
             });
 
-            let base_dir = PathBuf::from("./out")
-                .join(program_name)
-                .join(version_or_tag);
+            let base_dir = PathBuf::from("./out").join(program_name).join(version_or_tag);
 
             // Create directory if it doesn't exist
             if let Err(e) = fs::create_dir_all(&base_dir)
@@ -290,7 +295,7 @@ pub fn run_cli_parser(
             }
 
             let filename = match output_format {
-                ParseOutputFormat::ZodDirectory => program_name.to_string(),
+                ParseOutputFormat::TypeScriptDirectory => program_name.to_string(),
                 _ => format!("parsed.{}", output_format.get_file_extension()),
             };
 
@@ -312,9 +317,9 @@ pub fn run_cli_parser(
             generate_zod_schema(&out_path);
             println!("Zod TypeScript schema file saved successfully!");
         }
-        ParseOutputFormat::ZodDirectory => {
-            generate_zod_directory(&structure, &out_path);
-            println!("Zod TypeScript directory structure created successfully!");
+        ParseOutputFormat::TypeScriptDirectory => {
+            generate_typescript_directory(&structure, &out_path, program_version);
+            println!("TypeScript directory structure created successfully!");
         }
     }
 
@@ -1032,7 +1037,7 @@ fn generate_zod_schema(output_path: &PathBuf) {
     fs::write(output_path, zod_content).expect("Failed to write Zod schema file");
 }
 
-fn generate_zod_directory(structure: &serde_json::Value, output_path: &PathBuf) {
+fn generate_typescript_directory(structure: &serde_json::Value, output_path: &PathBuf, program_version: &str) {
     // Create the main directory
     fs::create_dir_all(output_path).expect("Failed to create output directory");
 
@@ -1041,10 +1046,22 @@ fn generate_zod_directory(structure: &serde_json::Value, output_path: &PathBuf) 
     let main_schema_path = output_path.join("schema.ts");
     fs::write(&main_schema_path, main_schema_content).expect("Failed to write main schema file");
 
+    // Generate naming convention file
+    let naming_convention_content = include_str!("schemas/cobra/naming-convention.ts");
+    let naming_convention_path = output_path.join("naming-convention.ts");
+    fs::write(&naming_convention_path, naming_convention_content).expect("Failed to write naming convention file");
+
+    // Generate command components file
+    let command_components_content = include_str!("schemas/cobra/command-components.ts");
+    let command_components_path = output_path.join("command-components.ts");
+    fs::write(&command_components_path, command_components_content).expect("Failed to write command components file");
+
     // Generate index file with exports
     let mut index_content = String::new();
     index_content.push_str("// Auto-generated command exports\n");
     index_content.push_str("export * from './schema';\n\n");
+    index_content.push_str(format!("export const version = '{}';\n", program_version).as_str());
+    
 
     // Extract program info
     let program_name = structure
@@ -1099,9 +1116,45 @@ fn generate_command_file(
         "../schema"
     };
     content.push_str(&format!(
-        "import {{ CLIStructure, Command, CommandFlag, CommandComponentDataType }} from '{}';\n",
+        "import type {{ Command, CommandFlag }} from '{}';\n",
         import_path
     ));
+    
+    // Check if we need CommandComponentDataType (used by flags and arguments)
+    let needs_data_type = if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
+        // Check for flags
+        let has_flags = children.get("FLAG").and_then(|v| v.as_array()).map_or(false, |flags| !flags.is_empty());
+        
+        // Check for arguments 
+        let has_arguments = has_usage_arguments(children) || children.get("ARGUMENT").and_then(|v| v.as_array()).map_or(false, |args| !args.is_empty());
+        
+        has_flags || has_arguments
+    } else {
+        false
+    };
+    
+    if needs_data_type {
+        content.push_str(&format!(
+            "import {{ CommandComponentDataType }} from '{}';\n",
+            import_path
+        ));
+    }
+    
+    // Check if we need NamingConventions (only used by arguments)
+    let needs_naming = if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
+        has_usage_arguments(children) || children.get("ARGUMENT").and_then(|v| v.as_array()).map_or(false, |args| !args.is_empty())
+    } else {
+        false
+    };
+    
+    if needs_naming {
+        let naming_import_path = if parent_path.is_empty() {
+            "./naming-convention"
+        } else {
+            "../naming-convention"
+        };
+        content.push_str(&format!("import {{ NamingConventions }} from '{}';\n", naming_import_path));
+    }
 
     // Collect subcommand imports
     let mut subcommand_imports = Vec::new();
@@ -1136,15 +1189,25 @@ fn generate_command_file(
     }
     content.push('\n');
 
-    // Generate command interface
-    let interface_name = format!("{}Command", to_pascal_case(&safe_command_name));
-    content.push_str(&format!("export interface {} {{\n", interface_name));
-    content.push_str(&format!("  name: '{}';\n", command_name));
+    // First, generate the flags constant if there are flags
+    if let Some(children) = command_data.get("children").and_then(|v| v.as_object())
+        && let Some(flags) = children.get("FLAG").and_then(|v| v.as_array())
+        && !flags.is_empty()
+    {
+        let flag_constant_content = generate_flags_constant(children, &safe_command_name);
+        content.push_str(&flag_constant_content);
+        content.push('\n');
+    }
+
+    // Generate command object (not interface)
+    let command_name_pascal = format!("{}Command", to_pascal_case(&safe_command_name));
+    content.push_str(&format!("export const {}: Command = {{\n", command_name_pascal));
+    content.push_str(&format!("  name: '{}',\n", command_name));
 
     // Add description if available
     if let Some(description) = command_data.get("description").and_then(|v| v.as_str()) {
         content.push_str(&format!(
-            "  description: '{}';\n",
+            "  description: '{}',\n",
             escape_string(description)
         ));
     }
@@ -1155,31 +1218,71 @@ fn generate_command_file(
         && let Some(first_usage) = usage_array.first()
         && let Some(usage_string) = first_usage.get("usage_string").and_then(|v| v.as_str())
     {
-        content.push_str(&format!("  usage: '{}';\n", escape_string(usage_string)));
+        content.push_str(&format!("  usage: '{}',\n", escape_string(usage_string)));
     }
 
-    // Add arguments if available
+    // Add arguments if available (from usage components)
     if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-        if let Some(args) = children.get("ARGUMENT").and_then(|v| v.as_array())
-            && !args.is_empty()
-        {
-            content.push_str("  arguments: {\n");
-            for (i, arg) in args.iter().enumerate() {
-                if let Some(arg_str) = arg.as_str() {
-                    let arg_name = sanitize_filename(arg_str);
-                    content.push_str(&format!("    '{}': string;  // {}\n", arg_name, arg_str));
-                } else {
-                    content.push_str(&format!("    'arg{}': string;\n", i));
+        let mut arguments = Vec::new();
+        
+        // Extract arguments from USAGE array
+        if let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array()) {
+            for usage in usage_array {
+                if let Some(usage_components) = usage.get("usage_components").and_then(|v| v.as_array()) {
+                    for component in usage_components {
+                        if let Some(component_type) = component.get("component_type").and_then(|v| v.as_str())
+                            && let Some(name) = component.get("name").and_then(|v| v.as_str())
+                            && component_type == "Keyword"
+                            && name.chars().all(|c| c.is_uppercase() || c == '_')
+                            && name != "FLAGS" // Exclude FLAGS keyword
+                        {
+                            let is_required = component.get("required").and_then(|v| v.as_bool()).unwrap_or(true);
+                            arguments.push((name.to_string(), is_required));
+                        }
+                    }
                 }
             }
-            content.push_str("  };\n");
+        }
+        
+        // Also check legacy ARGUMENT array for backwards compatibility
+        if let Some(args) = children.get("ARGUMENT").and_then(|v| v.as_array()) {
+            for (i, arg) in args.iter().enumerate() {
+                if let Some(arg_str) = arg.as_str() {
+                    arguments.push((arg_str.to_string(), true));
+                } else {
+                    arguments.push((format!("arg{}", i), true));
+                }
+            }
+        }
+        
+        if !arguments.is_empty() {
+            content.push_str("  arguments: {\n");
+            for (arg_name, is_required) in arguments {
+                let arg_variable_name = sanitize_js_variable_name(&arg_name.to_lowercase());
+                content.push_str(&format!("    {}: {{\n", arg_variable_name));
+                content.push_str(&format!("      description: 'The {} to use.',\n", arg_name.to_lowercase()));
+                content.push_str(&format!("      required: {},\n", is_required));
+                content.push_str("      valueDataType: CommandComponentDataType.STRING,\n");
+                content.push_str("      formats: [\n");
+                content.push_str("        {\n");
+                content.push_str("          namingConvention: NamingConventions.ResourceName(),\n");
+                content.push_str("          examples: [],\n");
+                content.push_str("        }\n");
+                content.push_str("      ]\n");
+                content.push_str("    },\n");
+            }
+            content.push_str("  },\n");
         }
 
-        // Add flags type annotation
+        // Add flags reference
         if let Some(flags) = children.get("FLAG").and_then(|v| v.as_array())
             && !flags.is_empty()
         {
-            content.push_str("  flags: CommandFlag[];\n");
+            let const_name = format!(
+                "{}_FLAGS",
+                sanitize_js_variable_name(&safe_command_name).to_uppercase()
+            );
+            content.push_str(&format!("  flags: {},\n", const_name));
         }
 
         // Process subcommands
@@ -1216,11 +1319,44 @@ fn generate_command_file(
         }
     }
 
-    content.push_str("}\n\n");
+    content.push_str("};\n\n");
 
-    // Add flag data constant
-    if let Some(children) = command_data.get("children").and_then(|v| v.as_object())
-        && let Some(flags) = children.get("FLAG").and_then(|v| v.as_array())
+    // Write the file
+    fs::write(&file_path, content).expect("Failed to write command file");
+
+    // Add export to index
+    let export_path = if parent_path.is_empty() {
+        format!("./{}", safe_command_name)
+    } else {
+        format!("./{}/{}", parent_path, safe_command_name)
+    };
+    index_content.push_str(&format!("export * from '{}';\n", export_path));
+}
+
+fn has_usage_arguments(children: &serde_json::Map<String, serde_json::Value>) -> bool {
+    if let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array()) {
+        for usage in usage_array {
+            if let Some(usage_components) = usage.get("usage_components").and_then(|v| v.as_array()) {
+                for component in usage_components {
+                    if let Some(component_type) = component.get("component_type").and_then(|v| v.as_str())
+                        && let Some(name) = component.get("name").and_then(|v| v.as_str())
+                        && component_type == "Keyword"
+                        && name.chars().all(|c| c.is_uppercase() || c == '_')
+                        && name != "FLAGS" // Exclude FLAGS keyword
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+fn generate_flags_constant(children: &serde_json::Map<String, serde_json::Value>, safe_command_name: &str) -> String {
+    let mut content = String::new();
+    
+    if let Some(flags) = children.get("FLAG").and_then(|v| v.as_array())
         && !flags.is_empty()
     {
         // Get usage string for docopt analysis
@@ -1390,41 +1526,29 @@ fn generate_command_file(
             ));
 
             // Required flag
-            content.push_str(&format!("    required: {}\n", is_required));
+            content.push_str(&format!("    required: {},\n", is_required));
 
-            // Examples (optional)
+            // Examples (always include, empty array if none)
+            content.push_str("    examples: [");
             if !examples.is_empty() {
-                content.push_str(",\n    examples: [\n");
+                content.push_str("\n");
                 for example in examples {
                     content.push_str(&format!("      '{}',\n", escape_string(example)));
                 }
-                content.push_str("    ]\n");
+                content.push_str("    ],\n");
+            } else {
+                content.push_str("],\n");
             }
+
+            // Naming convention (add basic naming convention)
+            content.push_str("    namingConvention: 'String'\n");
 
             content.push_str("  },\n");
         }
         content.push_str("];\n\n");
     }
 
-    // Add validation function
-    content.push_str(&format!(
-        "export function validate{}(data: any): {} {{\n",
-        interface_name, interface_name
-    ));
-    content.push_str("  // Add your validation logic here\n");
-    content.push_str("  return data;\n");
-    content.push_str("}\n");
-
-    // Write the file
-    fs::write(&file_path, content).expect("Failed to write command file");
-
-    // Add export to index
-    let export_path = if parent_path.is_empty() {
-        format!("./{}", safe_command_name)
-    } else {
-        format!("./{}/{}", parent_path, safe_command_name)
-    };
-    index_content.push_str(&format!("export * from '{}';\n", export_path));
+    content
 }
 
 fn sanitize_filename(name: &str) -> String {
@@ -1662,14 +1786,14 @@ pub fn run_cli_compare(
 
     // Build file paths
     let from_path = match compare_format {
-        ParseOutputFormat::ZodDirectory => base_dir.join(&from_version).join(program_name),
+        ParseOutputFormat::TypeScriptDirectory => base_dir.join(&from_version).join(program_name),
         _ => base_dir
             .join(&from_version)
             .join(format!("parsed.{}", compare_format.get_file_extension())),
     };
 
     let to_path = match compare_format {
-        ParseOutputFormat::ZodDirectory => base_dir.join(&to_version).join(program_name),
+        ParseOutputFormat::TypeScriptDirectory => base_dir.join(&to_version).join(program_name),
         _ => base_dir
             .join(&to_version)
             .join(format!("parsed.{}", compare_format.get_file_extension())),
@@ -1695,8 +1819,8 @@ pub fn run_cli_compare(
     }
 
     match compare_format {
-        ParseOutputFormat::ZodDirectory => {
-            compare_zod_directories(&from_path, &to_path, &from_version, &to_version);
+        ParseOutputFormat::TypeScriptDirectory => {
+            compare_typescript_directories(&from_path, &to_path, &from_version, &to_version);
         }
         _ => {
             compare_json_files(&from_path, &to_path, &from_version, &to_version);
@@ -1762,12 +1886,12 @@ fn compare_json_files(
     }
 }
 
-/// Compare two Zod directories and display differences
-fn compare_zod_directories(from_path: &Path, to_path: &Path, from_version: &str, to_version: &str) {
+/// Compare two TypeScript directories and display differences
+fn compare_typescript_directories(from_path: &Path, to_path: &Path, from_version: &str, to_version: &str) {
     println!("Analyzing CLI structure changes...");
     println!();
 
-    match comparison::compare_zod_directories(from_path, to_path) {
+    match comparison::compare_typescript_directories(from_path, to_path) {
         Ok(changes) => {
             if changes.is_empty() {
                 println!(
@@ -1791,7 +1915,7 @@ fn compare_zod_directories(from_path: &Path, to_path: &Path, from_version: &str,
             }
         }
         Err(e) => {
-            println!("Error comparing Zod directories: {}", e);
+            println!("Error comparing TypeScript directories: {}", e);
         }
     }
 }
