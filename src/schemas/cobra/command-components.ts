@@ -24,13 +24,18 @@ export type CommandComponentArgument = {
   formats: CommandComponentArgumentFormat[];
 };
 
+export type CommandComponentFlagFormat = {
+  description: string;
+  examples: string[];
+  valueDataType: CommandComponentDataType;
+  namingConvention?: NamingConvention;
+};
+
 export type CommandComponentFlag = {
   longName: string;
   shortName?: string;
-  valueDataType: CommandComponentDataType|CommandComponentDataType[];
-  defaultValue?: string;
   description: string;
   required: boolean;
-  namingConvention?: NamingConvention; // Renamed and made optional to match other interfaces
-  examples?: string[];
+  defaultValue?: string;
+  formats: CommandComponentFlagFormat[];
 };

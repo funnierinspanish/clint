@@ -11,16 +11,22 @@ export enum CommandComponentDataType {
   OPTION_LIST = 'option_list'
 }
 
+// Command Flag Format interface (similar to CommandArgumentFormat)
+export interface CommandFlagFormat {
+  description: string;
+  examples: string[];
+  valueDataType: CommandComponentDataType;
+  namingConvention?: NamingConvention;
+}
+
 // Command Flag interface for generated command files
 export interface CommandFlag {
   longName: string;
   shortName?: string;
-  valueDataType: CommandComponentDataType | CommandComponentDataType[];
-  defaultValue?: string;
   description: string;
   required: boolean;
-  examples: string[];
-  namingConvention?: NamingConvention; // Made optional to support undefined
+  defaultValue?: string;
+  formats: CommandFlagFormat[];
 }
 
 // Command Argument Format interface

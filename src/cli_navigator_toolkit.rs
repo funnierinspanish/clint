@@ -1154,14 +1154,23 @@ fn generate_command_file(
         ));
     }
 
-    // Check if we need NamingConventions (only used by arguments)
+    // Check if we need NamingConventions (used by both flags and arguments now)
     let needs_naming =
         if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-            has_usage_arguments(children)
+            // Check for flags
+            let has_flags = children
+                .get("FLAG")
+                .and_then(|v| v.as_array())
+                .is_some_and(|flags| !flags.is_empty());
+            
+            // Check for arguments 
+            let has_arguments = has_usage_arguments(children)
                 || children
                     .get("ARGUMENT")
                     .and_then(|v| v.as_array())
-                    .is_some_and(|args| !args.is_empty())
+                    .is_some_and(|args| !args.is_empty());
+            
+            has_flags || has_arguments
         } else {
             false
         };
@@ -1325,12 +1334,12 @@ fn generate_command_file(
             content.push_str("  subcommands: {\n");
             for subcommand_name in subcommands.keys() {
                 content.push_str(&format!(
-                    "    '{}': {}Command;\n",
+                    "    '{}': {}Command,\n",
                     subcommand_name,
                     to_pascal_case(subcommand_name)
                 ));
             }
-            content.push_str("  };\n");
+            content.push_str("  },\n");
 
             // Generate subcommand files
             let subdir_path = if parent_path.is_empty() {
@@ -1547,8 +1556,14 @@ fn generate_flags_constant(
                 content.push_str(&format!("    shortName: '{}',\n", short_flag));
             }
 
-            // Value data type
-            content.push_str(&format!("    valueDataType: {},\n", data_type_enum));
+            // Description (main flag description)
+            content.push_str(&format!(
+                "    description: '{}',\n",
+                escape_string(clean_description)
+            ));
+
+            // Required flag
+            content.push_str(&format!("    required: {},\n", is_required));
 
             // Default value (optional)
             if let Some(default_val) = default_value {
@@ -1558,29 +1573,43 @@ fn generate_flags_constant(
                 ));
             }
 
-            // Description
+            // Formats array (similar to arguments)
+            content.push_str("    formats: [\n");
+            content.push_str("      {\n");
             content.push_str(&format!(
-                "    description: '{}',\n",
+                "        description: '{}',\n",
                 escape_string(clean_description)
             ));
-
-            // Required flag
-            content.push_str(&format!("    required: {},\n", is_required));
-
-            // Examples (always include, empty array if none)
-            content.push_str("    examples: [");
+            
+            // Examples
+            content.push_str("        examples: [");
             if !examples.is_empty() {
                 content.push('\n');
                 for example in examples {
-                    content.push_str(&format!("      '{}',\n", escape_string(example)));
+                    content.push_str(&format!("          '{}',\n", escape_string(example)));
                 }
-                content.push_str("    ],\n");
+                content.push_str("        ],\n");
             } else {
                 content.push_str("],\n");
             }
 
-            // Naming convention (optional - could be enhanced based on flag analysis)
-            // content.push_str("    namingConvention: undefined,\n");
+            // Value data type in the format
+            content.push_str(&format!("        valueDataType: {},\n", data_type_enum));
+
+            // Naming convention based on data type analysis
+            let naming_convention = match data_type_enum.as_str() {
+                "CommandComponentDataType.STRING" => "NamingConventions.String()",
+                "CommandComponentDataType.INTEGER" => "NamingConventions.Integer()",
+                "CommandComponentDataType.FLOAT" => "NamingConventions.Float()",
+                "CommandComponentDataType.BOOLEAN" => "NamingConventions.Boolean()",
+                "CommandComponentDataType.KEY_VALUE_MAPPING" => "NamingConventions.KeyValue()",
+                "[CommandComponentDataType.STRING]" => "NamingConventions.StringArray()",
+                _ => "NamingConventions.String()",
+            };
+            content.push_str(&format!("        namingConvention: {}\n", naming_convention));
+
+            content.push_str("      }\n");
+            content.push_str("    ]\n");
 
             content.push_str("  },\n");
         }
