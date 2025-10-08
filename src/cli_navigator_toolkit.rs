@@ -1162,14 +1162,14 @@ fn generate_command_file(
                 .get("FLAG")
                 .and_then(|v| v.as_array())
                 .is_some_and(|flags| !flags.is_empty());
-            
-            // Check for arguments 
+
+            // Check for arguments
             let has_arguments = has_usage_arguments(children)
                 || children
                     .get("ARGUMENT")
                     .and_then(|v| v.as_array())
                     .is_some_and(|args| !args.is_empty());
-            
+
             has_flags || has_arguments
         } else {
             false
@@ -1580,7 +1580,7 @@ fn generate_flags_constant(
                 "        description: '{}',\n",
                 escape_string(clean_description)
             ));
-            
+
             // Examples
             content.push_str("        examples: [");
             if !examples.is_empty() {
@@ -1606,7 +1606,10 @@ fn generate_flags_constant(
                 "[CommandComponentDataType.STRING]" => "NamingConventions.StringArray()",
                 _ => "NamingConventions.String()",
             };
-            content.push_str(&format!("        namingConvention: {}\n", naming_convention));
+            content.push_str(&format!(
+                "        namingConvention: {}\n",
+                naming_convention
+            ));
 
             content.push_str("      }\n");
             content.push_str("    ]\n");
