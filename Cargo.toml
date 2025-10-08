@@ -1,6 +1,6 @@
 [package]
 name = "clint"
-version = "0.8.1"
+version = "0.8.5"
 description = "CLI Navigator Toolkit (CLINT) meant for people doing 'Developer Experience' work. It helps you get a better understanding of the structure of CLI tools to improve their usability."
 authors = ["Diego Coy (https://github.com/funnierinspanish)"]
 repository = "https://github.com/funnierinspanish/clint"
