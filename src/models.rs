@@ -65,7 +65,9 @@ impl ParseOutputFormat {
             "json" => Some(ParseOutputFormat::Json),
             "json-schema" => Some(ParseOutputFormat::JsonSchema),
             "zod" => Some(ParseOutputFormat::ZodSchema),
-            "ts-dir" | "typescript-dir" | "typescript-directory" => Some(ParseOutputFormat::TypeScriptDirectory),
+            "ts-dir" | "typescript-dir" | "typescript-directory" => {
+                Some(ParseOutputFormat::TypeScriptDirectory)
+            }
             // Keep backwards compatibility
             "zod-dir" | "zod-directory" => Some(ParseOutputFormat::TypeScriptDirectory),
             _ => None,

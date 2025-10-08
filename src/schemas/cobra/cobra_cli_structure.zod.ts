@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { NamingConvention } from './naming-convention';
 
 // Command component data types
 export enum CommandComponentDataType {
@@ -19,7 +20,14 @@ export interface CommandFlag {
   description: string;
   required: boolean;
   examples: string[];
-  namingConvention: string;
+  namingConvention?: NamingConvention; // Made optional to support undefined
+}
+
+// Command Argument Format interface
+export interface CommandArgumentFormat {
+  description: string;
+  namingConvention?: NamingConvention; // Made optional to support undefined
+  examples: string[];
 }
 
 // Command Argument interface for generated command files
@@ -27,8 +35,7 @@ export interface CommandArgument {
   description: string;
   required: boolean;
   valueDataType: CommandComponentDataType;
-  examples: string[];
-  namingConvention: string;
+  formats: CommandArgumentFormat[];
 }
 
 // Component type enum for usage parsing

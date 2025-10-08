@@ -9,14 +9,19 @@ export enum CommandComponentDataType {
   OPTION_LIST = 'option_list'
 }
 
+export type CommandComponentArgumentFormat = {
+  description: string;
+  namingConvention?: NamingConvention; // Made optional to support undefined
+  examples: string[];
+};
+
 export type CommandComponentArgument = {
   name: string;
   valueDataType: CommandComponentDataType|CommandComponentDataType[];
   defaultValue?: string;
   description: string;
   required: boolean;
-  valueNamingConvention: NamingConvention|NamingConvention[];
-  examples?: string[];
+  formats: CommandComponentArgumentFormat[];
 };
 
 export type CommandComponentFlag = {
@@ -26,6 +31,6 @@ export type CommandComponentFlag = {
   defaultValue?: string;
   description: string;
   required: boolean;
-  valueNamingConvention: NamingConvention|NamingConvention[];
+  namingConvention?: NamingConvention; // Renamed and made optional to match other interfaces
   examples?: string[];
 };

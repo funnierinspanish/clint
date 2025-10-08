@@ -264,17 +264,16 @@ pub fn run_cli_parser(
 
     // Determine output path with appropriate extension
     let out_path = match output_path {
-        Some(path) => {
-            match tag {
-              Some(t) => {
-                path.join(program_name).join(t).join(format!("parsed.{}", output_format.get_file_extension()))
-            },
+        Some(path) => match tag {
+            Some(t) => path
+                .join(program_name)
+                .join(t)
+                .join(format!("parsed.{}", output_format.get_file_extension())),
             None => {
                 println!("Using custom output path: {:?}", path);
                 path.clone()
             }
-          }
-        }
+        },
         None => {
             // Use new default structure: ./out/<program_name>/<version_or_tag>/
             let version_or_tag = tag.cloned().unwrap_or_else(|| {
@@ -285,7 +284,9 @@ pub fn run_cli_parser(
                 }
             });
 
-            let base_dir = PathBuf::from("./out").join(program_name).join(version_or_tag);
+            let base_dir = PathBuf::from("./out")
+                .join(program_name)
+                .join(version_or_tag);
 
             // Create directory if it doesn't exist
             if let Err(e) = fs::create_dir_all(&base_dir)
@@ -296,7 +297,7 @@ pub fn run_cli_parser(
 
             let filename = match output_format {
                 ParseOutputFormat::TypeScriptDirectory => program_name.to_string(),
-                _ => format!("parsed.{}", output_format.get_file_extension()),
+                _ => "parsed".to_string(),
             };
 
             base_dir.join(filename)
@@ -1037,7 +1038,11 @@ fn generate_zod_schema(output_path: &PathBuf) {
     fs::write(output_path, zod_content).expect("Failed to write Zod schema file");
 }
 
-fn generate_typescript_directory(structure: &serde_json::Value, output_path: &PathBuf, program_version: &str) {
+fn generate_typescript_directory(
+    structure: &serde_json::Value,
+    output_path: &PathBuf,
+    program_version: &str,
+) {
     // Create the main directory
     fs::create_dir_all(output_path).expect("Failed to create output directory");
 
@@ -1049,19 +1054,20 @@ fn generate_typescript_directory(structure: &serde_json::Value, output_path: &Pa
     // Generate naming convention file
     let naming_convention_content = include_str!("schemas/cobra/naming-convention.ts");
     let naming_convention_path = output_path.join("naming-convention.ts");
-    fs::write(&naming_convention_path, naming_convention_content).expect("Failed to write naming convention file");
+    fs::write(&naming_convention_path, naming_convention_content)
+        .expect("Failed to write naming convention file");
 
     // Generate command components file
     let command_components_content = include_str!("schemas/cobra/command-components.ts");
     let command_components_path = output_path.join("command-components.ts");
-    fs::write(&command_components_path, command_components_content).expect("Failed to write command components file");
+    fs::write(&command_components_path, command_components_content)
+        .expect("Failed to write command components file");
 
     // Generate index file with exports
     let mut index_content = String::new();
     index_content.push_str("// Auto-generated command exports\n");
     index_content.push_str("export * from './schema';\n\n");
     index_content.push_str(format!("export const version = '{}';\n", program_version).as_str());
-    
 
     // Extract program info
     let program_name = structure
@@ -1119,41 +1125,57 @@ fn generate_command_file(
         "import type {{ Command, CommandFlag }} from '{}';\n",
         import_path
     ));
-    
+
     // Check if we need CommandComponentDataType (used by flags and arguments)
-    let needs_data_type = if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-        // Check for flags
-        let has_flags = children.get("FLAG").and_then(|v| v.as_array()).map_or(false, |flags| !flags.is_empty());
-        
-        // Check for arguments 
-        let has_arguments = has_usage_arguments(children) || children.get("ARGUMENT").and_then(|v| v.as_array()).map_or(false, |args| !args.is_empty());
-        
-        has_flags || has_arguments
-    } else {
-        false
-    };
-    
+    let needs_data_type =
+        if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
+            // Check for flags
+            let has_flags = children
+                .get("FLAG")
+                .and_then(|v| v.as_array())
+                .is_some_and(|flags| !flags.is_empty());
+
+            // Check for arguments
+            let has_arguments = has_usage_arguments(children)
+                || children
+                    .get("ARGUMENT")
+                    .and_then(|v| v.as_array())
+                    .is_some_and(|args| !args.is_empty());
+
+            has_flags || has_arguments
+        } else {
+            false
+        };
+
     if needs_data_type {
         content.push_str(&format!(
             "import {{ CommandComponentDataType }} from '{}';\n",
             import_path
         ));
     }
-    
+
     // Check if we need NamingConventions (only used by arguments)
-    let needs_naming = if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
-        has_usage_arguments(children) || children.get("ARGUMENT").and_then(|v| v.as_array()).map_or(false, |args| !args.is_empty())
-    } else {
-        false
-    };
-    
+    let needs_naming =
+        if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
+            has_usage_arguments(children)
+                || children
+                    .get("ARGUMENT")
+                    .and_then(|v| v.as_array())
+                    .is_some_and(|args| !args.is_empty())
+        } else {
+            false
+        };
+
     if needs_naming {
         let naming_import_path = if parent_path.is_empty() {
             "./naming-convention"
         } else {
             "../naming-convention"
         };
-        content.push_str(&format!("import {{ NamingConventions }} from '{}';\n", naming_import_path));
+        content.push_str(&format!(
+            "import {{ NamingConventions }} from '{}';\n",
+            naming_import_path
+        ));
     }
 
     // Collect subcommand imports
@@ -1201,7 +1223,10 @@ fn generate_command_file(
 
     // Generate command object (not interface)
     let command_name_pascal = format!("{}Command", to_pascal_case(&safe_command_name));
-    content.push_str(&format!("export const {}: Command = {{\n", command_name_pascal));
+    content.push_str(&format!(
+        "export const {}: Command = {{\n",
+        command_name_pascal
+    ));
     content.push_str(&format!("  name: '{}',\n", command_name));
 
     // Add description if available
@@ -1224,26 +1249,33 @@ fn generate_command_file(
     // Add arguments if available (from usage components)
     if let Some(children) = command_data.get("children").and_then(|v| v.as_object()) {
         let mut arguments = Vec::new();
-        
+
         // Extract arguments from USAGE array
         if let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array()) {
             for usage in usage_array {
-                if let Some(usage_components) = usage.get("usage_components").and_then(|v| v.as_array()) {
+                if let Some(usage_components) =
+                    usage.get("usage_components").and_then(|v| v.as_array())
+                {
                     for component in usage_components {
-                        if let Some(component_type) = component.get("component_type").and_then(|v| v.as_str())
+                        if let Some(component_type) =
+                            component.get("component_type").and_then(|v| v.as_str())
                             && let Some(name) = component.get("name").and_then(|v| v.as_str())
                             && component_type == "Keyword"
                             && name.chars().all(|c| c.is_uppercase() || c == '_')
-                            && name != "FLAGS" // Exclude FLAGS keyword
+                            && name != "FLAGS"
+                        // Exclude FLAGS keyword
                         {
-                            let is_required = component.get("required").and_then(|v| v.as_bool()).unwrap_or(true);
+                            let is_required = component
+                                .get("required")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(true);
                             arguments.push((name.to_string(), is_required));
                         }
                     }
                 }
             }
         }
-        
+
         // Also check legacy ARGUMENT array for backwards compatibility
         if let Some(args) = children.get("ARGUMENT").and_then(|v| v.as_array()) {
             for (i, arg) in args.iter().enumerate() {
@@ -1254,17 +1286,18 @@ fn generate_command_file(
                 }
             }
         }
-        
+
         if !arguments.is_empty() {
             content.push_str("  arguments: {\n");
             for (arg_name, is_required) in arguments {
                 let arg_variable_name = sanitize_js_variable_name(&arg_name.to_lowercase());
                 content.push_str(&format!("    {}: {{\n", arg_variable_name));
-                content.push_str(&format!("      description: 'The {} to use.',\n", arg_name.to_lowercase()));
+                content.push_str(&format!("      description: '{}',\n", arg_name));
                 content.push_str(&format!("      required: {},\n", is_required));
                 content.push_str("      valueDataType: CommandComponentDataType.STRING,\n");
                 content.push_str("      formats: [\n");
                 content.push_str("        {\n");
+                content.push_str("          description: '',\n");
                 content.push_str("          namingConvention: NamingConventions.ResourceName(),\n");
                 content.push_str("          examples: [],\n");
                 content.push_str("        }\n");
@@ -1336,13 +1369,16 @@ fn generate_command_file(
 fn has_usage_arguments(children: &serde_json::Map<String, serde_json::Value>) -> bool {
     if let Some(usage_array) = children.get("USAGE").and_then(|v| v.as_array()) {
         for usage in usage_array {
-            if let Some(usage_components) = usage.get("usage_components").and_then(|v| v.as_array()) {
+            if let Some(usage_components) = usage.get("usage_components").and_then(|v| v.as_array())
+            {
                 for component in usage_components {
-                    if let Some(component_type) = component.get("component_type").and_then(|v| v.as_str())
+                    if let Some(component_type) =
+                        component.get("component_type").and_then(|v| v.as_str())
                         && let Some(name) = component.get("name").and_then(|v| v.as_str())
                         && component_type == "Keyword"
                         && name.chars().all(|c| c.is_uppercase() || c == '_')
-                        && name != "FLAGS" // Exclude FLAGS keyword
+                        && name != "FLAGS"
+                    // Exclude FLAGS keyword
                     {
                         return true;
                     }
@@ -1353,9 +1389,12 @@ fn has_usage_arguments(children: &serde_json::Map<String, serde_json::Value>) ->
     false
 }
 
-fn generate_flags_constant(children: &serde_json::Map<String, serde_json::Value>, safe_command_name: &str) -> String {
+fn generate_flags_constant(
+    children: &serde_json::Map<String, serde_json::Value>,
+    safe_command_name: &str,
+) -> String {
     let mut content = String::new();
-    
+
     if let Some(flags) = children.get("FLAG").and_then(|v| v.as_array())
         && !flags.is_empty()
     {
@@ -1485,7 +1524,7 @@ fn generate_flags_constant(children: &serde_json::Map<String, serde_json::Value>
 
         let const_name = format!(
             "{}_FLAGS",
-            sanitize_js_variable_name(&safe_command_name).to_uppercase()
+            sanitize_js_variable_name(safe_command_name).to_uppercase()
         );
         content.push_str(&format!("export const {}: CommandFlag[] = [\n", const_name));
         for (
@@ -1531,7 +1570,7 @@ fn generate_flags_constant(children: &serde_json::Map<String, serde_json::Value>
             // Examples (always include, empty array if none)
             content.push_str("    examples: [");
             if !examples.is_empty() {
-                content.push_str("\n");
+                content.push('\n');
                 for example in examples {
                     content.push_str(&format!("      '{}',\n", escape_string(example)));
                 }
@@ -1540,8 +1579,8 @@ fn generate_flags_constant(children: &serde_json::Map<String, serde_json::Value>
                 content.push_str("],\n");
             }
 
-            // Naming convention (add basic naming convention)
-            content.push_str("    namingConvention: 'String'\n");
+            // Naming convention (optional - could be enhanced based on flag analysis)
+            // content.push_str("    namingConvention: undefined,\n");
 
             content.push_str("  },\n");
         }
@@ -1887,7 +1926,12 @@ fn compare_json_files(
 }
 
 /// Compare two TypeScript directories and display differences
-fn compare_typescript_directories(from_path: &Path, to_path: &Path, from_version: &str, to_version: &str) {
+fn compare_typescript_directories(
+    from_path: &Path,
+    to_path: &Path,
+    from_version: &str,
+    to_version: &str,
+) {
     println!("Analyzing CLI structure changes...");
     println!();
 
