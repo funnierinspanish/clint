@@ -13,21 +13,49 @@ CLINT is a complete rewrite and enhancement of [cli-explorer-toolchain_legacy](h
 
 ### Installation
 
-#### Option 1: Install directly from GitHub (Recommended)
+#### Option 1: Quick Install (Recommended)
+
+Install CLINT with a single command using our installation script:
+
+```bash
+# Download and install the latest release
+curl -sSL https://raw.githubusercontent.com/funnierinspanish/clint/main/install.sh | bash
+```
+
+The script will:
+
+- Automatically detect your platform and architecture
+- Download the latest release from GitHub
+- Install CLINT to `~/.local/bin/`
+- Provide instructions to add it to your PATH
+
+Do Not run random scripts from the internet without inspecting them first!
+
+https://raw.githubusercontent.com/funnierinspanish/clint/refs/heads/main/install.sh
+
+```bash
+# Download the script, inspect it, then run
+curl -sSL https://raw.githubusercontent.com/funnierinspanish/clint/main/install.sh -o install.sh
+cat install.sh  # Review the script
+chmod +x install.sh
+./install.sh
+```
+
+#### Option 2: Install from source with Cargo
 
 ```bash
 # Install directly from the Git repository
-cargo install --git https://github.com/funnierinspanish/clint.git
+cargo install --git https://github.com/unjs/clint.git
 
 # Verify installation
 clint --version
 ```
 
-#### Option 2: Build from source
+#### Option 3: Build from source
 
 ```bash
 # Clone the repository
-git clone https://github.com/funnierinspanish/clint.git
+git clone https://github.com/unjs/clint.git
 cd clint
 
 # Build the project
